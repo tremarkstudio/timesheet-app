@@ -7,6 +7,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
+  "scripts": {
+  "build": "react-scripts build"   // or "vite build" if using Vite
+},
+  
   "keywords": [],
   "author": "",
   "license": "ISC",

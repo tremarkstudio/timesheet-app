@@ -1,0 +1,245 @@
+import React from 'react';
+
+// Elegant Beauty Boutique — Single-file React component
+// Tailwind CSS assumed to be available globally.
+// Uses modern, minimal layout, responsive design, and accessible components.
+
+export default function ElegantBeautyBoutique() {
+  const products = [
+    { id: 1, name: 'Radiance Facial', price: 'R950', desc: 'Luxury facial with botanical serums', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=1200&q=80' },
+    { id: 2, name: 'Velvet Body Polish', price: 'R650', desc: 'Exfoliation & hydrating mask for silk-smooth skin', img: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1200&q=80' },
+    { id: 3, name: 'Luxe Manicure', price: 'R420', desc: 'Nail shaping, cuticle care & long-wear finish', img: 'https://images.unsplash.com/photo-1533227268428-f9ed0900fb3b?w=1200&q=80' },
+    { id: 4, name: 'Signature Massage', price: 'R1200', desc: 'Deep-relaxation therapy with warm oil ritual', img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1200&q=80' }
+  ];
+
+  return (
+    <div className="min-h-screen bg-cream-50 text-gray-800 antialiased">
+      {/* Top bar */}
+      <header className="bg-white/60 backdrop-blur-md sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-200 to-amber-200 flex items-center justify-center shadow">
+              <span className="font-serif text-xl">EB</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-medium">Elegant Beauty Boutique</h1>
+              <p className="text-xs text-gray-500">Curated luxury skincare & aesthetics</p>
+            </div>
+          </div>
+
+          <nav className="hidden md:flex items-center gap-6 text-sm">
+            <a href="#services" className="hover:underline">Services</a>
+            <a href="#products" className="hover:underline">Products</a>
+            <a href="#booking" className="hover:underline">Book</a>
+            <a href="#about" className="hover:underline">About</a>
+            <button className="ml-4 px-4 py-2 rounded-md border border-gray-200 text-sm">Sign in</button>
+          </nav>
+
+          <div className="md:hidden">
+            <button aria-label="Open menu" className="p-2 rounded-md border">☰</button>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="bg-[url('https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=1600&q=80')] bg-cover bg-center">
+        <div className="bg-gradient-to-b from-black/30 to-black/10">
+          <div className="max-w-7xl mx-auto px-6 py-20 text-white">
+            <div className="max-w-2xl">
+              <h2 className="text-4xl md:text-5xl font-serif font-semibold leading-tight">Where time slows and skin awakens</h2>
+              <p className="mt-6 text-lg text-white/85">An intimate sanctuary offering clinically-informed treatments and handcrafted rituals. Experience luxury that feels personal.</p>
+
+              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                <a href="#booking" className="inline-flex items-center justify-center rounded-md bg-amber-100/95 px-6 py-3 text-sm font-medium text-gray-900 shadow">Book an Appointment</a>
+                <a href="#services" className="inline-flex items-center justify-center rounded-md border border-white/30 px-6 py-3 text-sm">View Services</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured services */}
+      <section id="services" className="max-w-7xl mx-auto px-6 py-16">
+        <div className="grid md:grid-cols-2 gap-10 items-center">
+          <div>
+            <h3 className="text-2xl font-semibold">Bespoke Treatments</h3>
+            <p className="mt-4 text-gray-600">Each protocol is tailored after a one-on-one consultation. We combine advanced cosmeceuticals with restorative techniques to deliver lasting results.</p>
+
+            <ul className="mt-6 space-y-4">
+              <li className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center font-semibold">01</div>
+                <div>
+                  <strong>Radiance Facial</strong>
+                  <div className="text-sm text-gray-500">Detox, hydrate and illuminate — 75 minutes</div>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center font-semibold">02</div>
+                <div>
+                  <strong>Signature Massage</strong>
+                  <div className="text-sm text-gray-500">Therapeutic & restorative — 60 / 90 minutes</div>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center font-semibold">03</div>
+                <div>
+                  <strong>Luxury Manicure & Pedicure</strong>
+                  <div className="text-sm text-gray-500">Beauty ritual with warm stones & polish</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-xl overflow-hidden shadow-lg">
+              <img src="https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&q=60" alt="treatment" className="w-full h-48 object-cover"/>
+            </div>
+            <div className="rounded-xl overflow-hidden shadow-lg">
+              <img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&q=60" alt="spa" className="w-full h-48 object-cover"/>
+            </div>
+            <div className="rounded-xl overflow-hidden shadow-lg">
+              <img src="https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=800&q=60" alt="consult" className="w-full h-48 object-cover"/>
+            </div>
+            <div className="rounded-xl overflow-hidden shadow-lg">
+              <img src="https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=800&q=60" alt="treatment" className="w-full h-48 object-cover"/>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Products */}
+      <section id="products" className="bg-white/60 py-16">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-semibold">Curated Products</h3>
+            <a className="text-sm underline" href="#">Shop all</a>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            {products.map(p => (
+              <article key={p.id} className="rounded-xl overflow-hidden shadow hover:shadow-lg transition-shadow bg-white">
+                <img src={p.img} alt={p.name} className="w-full h-40 object-cover"/>
+                <div className="p-4">
+                  <h4 className="font-medium">{p.name}</h4>
+                  <p className="text-sm text-gray-500 mt-1">{p.desc}</p>
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-sm font-semibold">{p.price}</div>
+                    <button className="px-3 py-1 rounded-md border text-sm">Add</button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Booking / CTA */}
+      <section id="booking" className="max-w-4xl mx-auto px-6 py-16">
+        <div className="rounded-2xl bg-gradient-to-r from-white to-amber-50 p-8 shadow-lg">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div>
+              <h3 className="text-2xl font-semibold">Personalised bookings</h3>
+              <p className="mt-3 text-gray-600">Choose a treatment and pick a time. We'll personalise your experience with a short pre-appointment consultation.</p>
+
+              <ul className="mt-4 text-sm text-gray-600 space-y-2">
+                <li>Privacy-focused consultations</li>
+                <li>Complimentary herbal tea</li>
+                <li>Discreet valet & concierge services on request</li>
+              </ul>
+            </div>
+
+            <form className="space-y-4" onSubmit={(e)=>{e.preventDefault(); alert('Booking submitted — integrate real booking API');}}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input required placeholder="Full name" className="px-4 py-3 rounded-md border"/>
+                <input required placeholder="Phone or WhatsApp" className="px-4 py-3 rounded-md border"/>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select required className="px-4 py-3 rounded-md border">
+                  <option value="">Select service</option>
+                  <option>Radiance Facial — 75 min</option>
+                  <option>Signature Massage — 60 min</option>
+                  <option>Luxe Manicure — 45 min</option>
+                </select>
+                <input type="date" required className="px-4 py-3 rounded-md border"/>
+              </div>
+
+              <textarea placeholder="Notes or requests (optional)" className="w-full px-4 py-3 rounded-md border" rows={3}></textarea>
+              <button type="submit" className="w-full rounded-md py-3 font-medium bg-amber-100/95">Request Booking</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      {/* About & Values */}
+      <section id="about" className="max-w-7xl mx-auto px-6 py-16">
+        <div className="grid md:grid-cols-3 gap-8 items-start">
+          <div className="md:col-span-2">
+            <h3 className="text-2xl font-semibold">Our Philosophy</h3>
+            <p className="mt-4 text-gray-600">We fuse clinical efficacy with sensory luxury. Our team are trained therapists and clinicians — each treatment is a ritual designed to restore calm and confidence.</p>
+
+            <div className="mt-6 grid sm:grid-cols-2 gap-4">
+              <div className="p-4 border rounded-lg">
+                <h4 className="font-medium">Clean, Effective Ingredients</h4>
+                <p className="text-sm text-gray-500 mt-2">We only stock products with clinical backing and sustainable sourcing.</p>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <h4 className="font-medium">Discreet Luxury</h4>
+                <p className="text-sm text-gray-500 mt-2">An intimate space designed for privacy and comfort.</p>
+              </div>
+            </div>
+          </div>
+
+          <aside className="p-6 bg-amber-50 rounded-xl">
+            <h4 className="font-semibold">Contact</h4>
+            <p className="mt-2 text-sm text-gray-600">Cape Town • By appointment</p>
+            <p className="mt-4 text-sm">Phone: <a href="tel:+27711234567" className="underline">+27 71 123 4567</a></p>
+            <p className="mt-2 text-sm">Email: <a href="mailto:hello@beautyboutique.co.za" className="underline">hello@beautyboutique.co.za</a></p>
+          </aside>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-white/60 border-t">
+        <div className="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row items-start justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-200 to-amber-200 flex items-center justify-center">EB</div>
+              <div>
+                <div className="font-medium">Elegant Beauty Boutique</div>
+                <div className="text-xs text-gray-500">Licensed aesthetics & skincare</div>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-600 max-w-sm">Join our mailing list for seasonal offers and early booking access to limited treatments.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <h5 className="font-semibold">Explore</h5>
+              <ul className="mt-2 text-sm text-gray-600 space-y-2">
+                <li>Services</li>
+                <li>Products</li>
+                <li>Gift Vouchers</li>
+                <li>Careers</li>
+              </ul>
+            </div>
+
+            <div>
+              <h5 className="font-semibold">Policies</h5>
+              <ul className="mt-2 text-sm text-gray-600 space-y-2">
+                <li>Privacy</li>
+                <li>T&amp;C</li>
+                <li>Returns</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t py-4 text-center text-xs text-gray-500">© {new Date().getFullYear()} Elegant Beauty Boutique — All rights reserved.</div>
+      </footer>
+    </div>
+  );
+}

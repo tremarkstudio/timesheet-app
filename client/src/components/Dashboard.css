@@ -1,0 +1,20 @@
+/* client/src/components/Dashboard.css */
+.dashboard { display: flex; flex-direction: column; background: #f7f7f7; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+header { z-index: 10; }
+.sidebar { width: 220px; background: linear-gradient(180deg, #f0f0f0, #e0e0e0); padding: 20px; border-right: 1px solid #d0d0d0; }
+.sidebar h2 { font-size: 20px; margin-bottom: 20px; color: #333; }
+.main-content { flex: 1; padding: 30px; }
+.top-bar { font-size: 28px; font-weight: 600; color: #1c2526; margin-bottom: 30px; text-align: right; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.card { background: #fff; padding: 50px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; font-size: 16px; color: #333; border: #EB7638 2px solid; transition: transform 0.2s; }
+.card:hover { transform: translateY(-5px); }
+.bg-custom-orange { background-color: #EB7638; }
+.text-custom-orange { color: #EB7638; }
+.bg-custom-gray{background-color:#d0d0d0}
+.bg-custom-blue{background-color:#1f2937}
+/* Mobile */
+@media (max-width: 768px) {
+  .sidebar { position: fixed; left: -220px; top: 0; height: 100vh; transition: left 0.3s; z-index: 100; }
+  .sidebar.translate-x-0 { left: 0; }
+  .main-content { padding: 20px; }
+}

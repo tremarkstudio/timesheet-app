@@ -1,0 +1,21 @@
+.wave {
+  background: rgba(255, 255, 255, 0.2);
+  height: 200px;
+  width: 200%;
+  position: absolute;
+  bottom: 0;
+  animation: wave 7s infinite linear;
+  transform: translateX(0);
+  background-size: cover;
+}
+
+@keyframes wave {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@media (max-width: 640px) {
+  .wave {
+    height: 150px;
+  }
+}

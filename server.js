@@ -54,8 +54,11 @@ const db = mysql.createConnection({
 });
 
 db.connect(err => {
-  if (err) throw err;
-  console.log('MySQL connected');
+  if (err) {
+    console.error('MySQL connection failed:', err.message);
+    process.exit(1); // crash early if DB down
+  }
+  console.log('MySQL connected successfully');
 });
 
 // Auth middleware
@@ -988,14 +991,8 @@ app.get('/test-email', async (req, res) => {
     res.status(500).send('Failed: ' + err.message);
   }
 });
-const port = process.env.PORT || 5000;  
+const PORT = process.env.PORT || 5000;  
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-
-app.get('/', (req, res) => {
-  res.send('Hello from Render! API is up.');
-});
-

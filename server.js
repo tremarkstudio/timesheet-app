@@ -48,6 +48,9 @@ const db = mysql.createConnection({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
+  ssl: {
+    rejectUnauthorized: false  // Accept Aiven's self-signed cert for simplicity
+  }
 });
 
 db.connect(err => {
@@ -996,6 +999,3 @@ app.get('/', (req, res) => {
   res.send('Hello from Render! API is up.');
 });
 
-app.get('/', (req, res) => {
-  res.send('Hello from Render! API is up.');
-});

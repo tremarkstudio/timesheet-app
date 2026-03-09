@@ -49,14 +49,14 @@ const db = mysql.createConnection({
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
   ssl: {
-    rejectUnauthorized: false  // Accept Aiven's self-signed cert for simplicity
+    rejectUnauthorized: false   // Accept Aiven cert for now
   }
 });
 
 db.connect(err => {
   if (err) {
     console.error('MySQL connection failed:', err.message);
-    process.exit(1); // crash early if DB down
+    process.exit(1);
   }
   console.log('MySQL connected successfully');
 });
@@ -991,8 +991,8 @@ app.get('/test-email', async (req, res) => {
     res.status(500).send('Failed: ' + err.message);
   }
 });
-const PORT = process.env.PORT || 5000;  
+const PORT = process.env.PORT || 5000;  // Render uses process.env.PORT
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });

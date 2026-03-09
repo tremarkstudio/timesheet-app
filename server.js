@@ -992,7 +992,9 @@ app.listen(port, '0.0.0.0', () => {
 });
 
 
-
+app.get('/', (req, res) => {
+  res.send('Hello from Render! API is up.');
+});
 
 app.get('/', (req, res) => {
   res.send('Hello from Render! API is up.');

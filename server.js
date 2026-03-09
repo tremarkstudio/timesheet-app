@@ -46,7 +46,7 @@ const db = mysql.createConnection({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 20110,   // ← fallback to 20110 too
+  port: process.env.DB_PORT || 20110,   // ← change from 3306 to 20110  
   ssl: {
     rejectUnauthorized: false   // Important for Aiven self-signed cert
   }

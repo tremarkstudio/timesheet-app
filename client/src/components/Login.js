@@ -12,7 +12,7 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5000/login', { username, password });
+      const response = await axios.post('process.env.REACT_APP_API_URL/login', { username, password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('username', response.data.user.username);
       localStorage.setItem('role_id', response.data.user.role_id);
@@ -25,7 +25,7 @@ const Login = () => {
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/forgot-password', { email });
+      await axios.post('process.env.REACT_APP_API_URL/forgot-password', { email });
       alert('Reset email sent!');
       setShowForgot(false);
       setEmail('');

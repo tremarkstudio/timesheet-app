@@ -19,7 +19,7 @@ const TimesheetModal = ({ isOpen, onClose, timesheet, onSave }) => {
     const fetchClientNames = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('http://localhost:5000/timesheets', {
+        const res = await axios.get('process.env.REACT_APP_API_URL/timesheets', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = res.data || [];
@@ -161,7 +161,7 @@ const TimesheetModal = ({ isOpen, onClose, timesheet, onSave }) => {
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">Attachment</label>
               <a
-                href={`http://localhost:5000/${attachment_path}`}
+                href={`process.env.REACT_APP_API_URL/${attachment_path}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-custom-orange hover:underline font-medium"

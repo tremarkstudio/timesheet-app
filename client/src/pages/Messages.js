@@ -43,7 +43,7 @@ const Messages = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found');
-      const res = await axios.get('http://localhost:5000/notifications', {
+      const res = await axios.get('process.env.REACT_APP_API_URL/notifications', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications(res.data || []);
@@ -56,7 +56,7 @@ const Messages = () => {
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/users', {
+      const res = await axios.get('process.env.REACT_APP_API_URL/users', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setEmployees(res.data.filter(u => u.role_id === 3) || []);
@@ -73,13 +73,13 @@ const Messages = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found');
 
-      const userRes = await axios.get('http://localhost:5000/users/me', {
+      const userRes = await axios.get('process.env.REACT_APP_API_URL/users/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const managerId = userRes.data.manager_id;
 
       if (managerId) {
-        const managerRes = await axios.get(`http://localhost:5000/users/${managerId}`, {
+        const managerRes = await axios.get(`process.env.REACT_APP_API_URL/users/${managerId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setManager(managerRes.data);
@@ -103,7 +103,7 @@ const Messages = () => {
     setChatLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`http://localhost:5000/messages/user/${userId}`, {
+      const res = await axios.get(`process.env.REACT_APP_API_URL/messages/user/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setChatMessages(res.data || []);
@@ -120,7 +120,7 @@ const Messages = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/messages', {
+      await axios.post('process.env.REACT_APP_API_URL/messages', {
         content: messageText.trim(),
         recipientId: selectedUserId,
       }, {

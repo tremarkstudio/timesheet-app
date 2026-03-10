@@ -60,7 +60,7 @@ const LeaveApplication = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const endpoint = isAdmin && selectedUserId ? `http://localhost:5000/leave?user_id=${selectedUserId}` : 'http://localhost:5000/leave';
+      const endpoint = isAdmin && selectedUserId ? `process.env.REACT_APP_API_URL/leave?user_id=${selectedUserId}` : 'process.env.REACT_APP_API_URL/leave';
       const res = await axios.get(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -92,7 +92,7 @@ const LeaveApplication = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/users', {
+      const res = await axios.get('process.env.REACT_APP_API_URL/users', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(res.data || []);
@@ -104,7 +104,7 @@ const LeaveApplication = () => {
   const fetchAdmins = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/managers', {
+      const res = await axios.get('process.env.REACT_APP_API_URL/managers', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setAdmins(res.data || []);
@@ -125,7 +125,7 @@ const LeaveApplication = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/leave', formData, {
+      await axios.post('process.env.REACT_APP_API_URL/leave', formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSuccess('Leave application submitted successfully!');
@@ -163,7 +163,7 @@ const LeaveApplication = () => {
       const endpoint = actionType === 'approve' ? 'approve' : 'reject';
       const payload = actionType === 'approve' ? { onBehalfOf } : {};
 
-      await axios.put(`http://localhost:5000/leave/${selectedRequest.id}/${endpoint}`, payload, {
+      await axios.put(`process.env.REACT_APP_API_URL/leave/${selectedRequest.id}/${endpoint}`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

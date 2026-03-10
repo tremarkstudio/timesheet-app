@@ -47,7 +47,7 @@ const ReportingPage = () => {
       try {
         const token = localStorage.getItem('token');
 
-        const usersRes = await axios.get('http://localhost:5000/users', {
+        const usersRes = await axios.get('process.env.REACT_APP_API_URL/users', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const users = usersRes.data || [];
@@ -58,7 +58,7 @@ const ReportingPage = () => {
         setUsersMap(map);
         setEmployees(users.filter(u => u.role_id === 3));
 
-        const tsRes = await axios.get('http://localhost:5000/timesheets', {
+        const tsRes = await axios.get('process.env.REACT_APP_API_URL/timesheets', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setTimesheets(tsRes.data || []);

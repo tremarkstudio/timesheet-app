@@ -1,6 +1,7 @@
 // src/pages/Profile.js
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 export default function Profile() {
   const navigate = useNavigate();

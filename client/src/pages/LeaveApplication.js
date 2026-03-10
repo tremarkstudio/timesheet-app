@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { CheckCircle, XCircle, Send, Loader2, AlertTriangle, Filter } from 'lucide-react';
+import api from '../api/axios';
 
 const LeaveApplication = () => {
   const [activeTab, setActiveTab] = useState('info');

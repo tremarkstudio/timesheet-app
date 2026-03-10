@@ -1,5 +1,6 @@
 // client/src/pages/CalendarPage.js
 import React from 'react';
+import api from '../api/axios';
 import TimesheetCalendar from '../components/TimesheetCalendar';
 
 const CalendarPage = () => {

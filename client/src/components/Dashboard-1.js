@@ -1,6 +1,7 @@
 // client/src/pages/Dashboard.js
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import api from '../api/axios';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Clock, Calendar, Users, Menu, X, Edit, Trash2, Plus, LogOut } from 'lucide-react';
 import TimesheetForm from '../components/TimesheetForm';

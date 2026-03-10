@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Send, Bell, MessageSquare, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import api from '../api/axios';
 
 const Messages = () => {
   const navigate = useNavigate();

@@ -1,6 +1,7 @@
 // client/src/pages/UserManagement.js
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import api from '../api/axios';
 import { Edit, Trash2, Plus, X, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 
 const UserManagement = () => {

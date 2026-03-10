@@ -1,5 +1,6 @@
 // client/src/pages/ReportingPage.js
 import React, { useEffect, useState } from 'react';
+import api from '../api/axios';
 import axios from 'axios';
 import { Search, User } from 'lucide-react';
 

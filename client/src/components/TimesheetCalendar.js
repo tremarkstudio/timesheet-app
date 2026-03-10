@@ -6,6 +6,7 @@ import { enUS } from 'date-fns/locale';
 import axios from 'axios';
 import { Eye } from 'lucide-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import api from '../api/axios';
 import '../components/Dashboard.css';
 
 const localizer = dateFnsLocalizer({

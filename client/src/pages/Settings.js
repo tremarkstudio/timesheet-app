@@ -1,6 +1,7 @@
 // client/src/pages/Settings.js
 import React, { useState, useEffect } from 'react';
 import { Trash2, Plus } from 'lucide-react';
+import api from '../api/axios';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('app');

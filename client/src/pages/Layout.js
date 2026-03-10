@@ -1,6 +1,7 @@
 // src/components/Layout.js
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 import axios from 'axios';
 import { 
   Home, Clock, Calendar, Users, MessageSquare, CalendarCheck, Settings, LogOut, Menu, X, Bell, User

@@ -1,6 +1,7 @@
 // client/src/pages/Dashboard.js
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import api from '../api/axios';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Eye, Calendar, FileText, Clock, AlertTriangle, Send } from 'lucide-react';  // ← Added Send here
 import { Line } from 'react-chartjs-2';

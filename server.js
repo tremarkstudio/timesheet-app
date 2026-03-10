@@ -36,26 +36,34 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Middleware
+// ==================== MIDDLEWARE ====================
 app.use(cors({
   origin: [
-    'http://localhost:3000',               // local dev
-    'https://timesheet-frontend-abc123.onrender.com',  // Render preview
-    'https://app.jimmac.co.za'             // your future domain
+    'http://localhost:3000',
+    'https://timesheet-frontend-abc123.onrender.com',   // ← CHANGE TO YOUR ACTUAL FRONTEND URL
+    'https://app.jimmac.co.za'
   ],
-  credentials: true, // if using cookies/auth headers
+  credentials: true,
 }));
+
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
+// Simple request logger (helps debugging)
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// MySQL Connection (Aiven)
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 20110,   // ← change from 3306 to 20110  
+  port: process.env.DB_PORT || 20110,
   ssl: {
-    rejectUnauthorized: false   // Important for Aiven self-signed cert
+    rejectUnauthorized: false
   }
 });
 
@@ -67,7 +75,7 @@ db.connect(err => {
   console.log('MySQL connected successfully');
 });
 
-// Auth middleware
+// Auth middleware (improved)
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -82,6 +90,7 @@ const authenticate = (req, res, next) => {
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
+      console.error('JWT verification failed:', err.message);
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
     req.user = decoded;
@@ -96,6 +105,15 @@ const restrictTo = (...roles) => (req, res, next) => {
   }
   next();
 };
+
+// ==================== TEST ROUTES ====================
+app.get('/', (req, res) => {
+  res.json({ message: 'JIMMAC Timesheet API is live! 🚀' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Backend is healthy' });
+});
 
 // ────────────────────────────────────────────────
 // DASHBOARD DATA
@@ -999,7 +1017,10 @@ app.get('/test-email', async (req, res) => {
     res.status(500).send('Failed: ' + err.message);
   }
 });
-const PORT = process.env.PORT || 5000;  // Render uses process.env.PORT
+
+
+// ==================== SERVER START ====================
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);

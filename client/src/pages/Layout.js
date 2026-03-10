@@ -40,12 +40,12 @@ const Layout = () => {
       if (!token) return;
 
       try {
-        const userRes = await axios.get('process.env.REACT_APP_API_URL/users/me', {
+        const userRes = await axios.get('${process.env.REACT_APP_API_URL}/users/me', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setUser(userRes.data);
 
-        const notifRes = await axios.get('process.env.REACT_APP_API_URL/notifications', {
+        const notifRes = await axios.get('${process.env.REACT_APP_API_URL}/notifications', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const notifs = notifRes.data || [];
@@ -78,7 +78,7 @@ const Layout = () => {
     navigate('/');
   };
 
-  const avatarUrl = user?.avatar_url ? `process.env.REACT_APP_API_URL/${user.avatar_url}` : null;
+  const avatarUrl = user?.avatar_url ? `${process.env.REACT_APP_API_URL}/${user.avatar_url}` : null;
   const initials = (user?.first_name?.[0] || user?.username?.[0] || 'U').toUpperCase();
 
   return (

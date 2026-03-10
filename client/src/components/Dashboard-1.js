@@ -35,7 +35,7 @@ const Dashboard = () => {
       setLoading(false);
       return;
     }
-    axios.get(`${process.env.REACT_APP_API_URL}/dashboard-data`, {
+    axios.get(`${${process.env.REACT_APP_API_URL}}/dashboard-data`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => {

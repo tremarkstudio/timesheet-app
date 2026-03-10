@@ -38,7 +38,7 @@ const TimesheetForm = ({ onSubmitSuccess }) => {
   const fetchExistingTimesheets = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('${process.env.REACT_APP_API_URL}/timesheets', {
+      const res = await api.get('${process.env.REACT_APP_API_URL}/timesheets', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = res.data || [];
@@ -137,7 +137,7 @@ const TimesheetForm = ({ onSubmitSuccess }) => {
       formData.append('tasks', JSON.stringify(tasks));
       if (attachment) formData.append('attachment', attachment);
 
-      await axios.post('${process.env.REACT_APP_API_URL}/timesheets', formData, {
+      await api.post('${process.env.REACT_APP_API_URL}/timesheets', formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',

@@ -40,12 +40,12 @@ const Layout = () => {
       if (!token) return;
 
       try {
-        const userRes = await axios.get('${process.env.REACT_APP_API_URL}/users/me', {
+        const userRes = await api.get('${process.env.REACT_APP_API_URL}/users/me', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setUser(userRes.data);
 
-        const notifRes = await axios.get('${process.env.REACT_APP_API_URL}/notifications', {
+        const notifRes = await api.get('${process.env.REACT_APP_API_URL}/notifications', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const notifs = notifRes.data || [];

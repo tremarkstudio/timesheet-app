@@ -19,7 +19,7 @@ const TimesheetModal = ({ isOpen, onClose, timesheet, onSave }) => {
     const fetchClientNames = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('${process.env.REACT_APP_API_URL}/timesheets', {
+        const res = await api.get('${process.env.REACT_APP_API_URL}/timesheets', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = res.data || [];

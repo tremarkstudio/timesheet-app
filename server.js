@@ -37,7 +37,14 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:3000' }));
+app.use(cors({
+  origin: [
+    'http://localhost:3000',               // local dev
+    'https://timesheet-frontend-abc123.onrender.com',  // Render preview
+    'https://app.jimmac.co.za'             // your future domain
+  ],
+  credentials: true, // if using cookies/auth headers
+}));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 

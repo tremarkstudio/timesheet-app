@@ -70,16 +70,18 @@ db.connect(err => {
 // Auth middleware
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No or invalid authorization header' });
   }
 
   const token = authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token provided' });
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
-      console.error('JWT verification failed:', err.message);
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
     req.user = decoded;

@@ -69,7 +69,7 @@ const Dashboard = () => {
       setLoading(true);
       try {
         // Stats
-        const statsRes = await axios.get('process.env.REACT_APP_API_URL/dashboard-data', {
+        const statsRes = await axios.get('process.env.REACT_APP_API_URL/dashboard-dat', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setData(statsRes.data || { totalProduction: 0, timeValue: 0, funds: 0 });

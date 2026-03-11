@@ -139,16 +139,10 @@ app.get('/health', (req, res) => {
 // DASHBOARD DATA
 // ────────────────────────────────────────────────
 app.get('/dashboard-data', authenticate, async (req, res) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication failed - no user object' });
-  }
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
 
   const userId = req.user.id;
   const role_id = req.user.role_id;
-
-  if (!userId || !role_id) {
-    return res.status(401).json({ error: 'Invalid user data' });
-  }
 
   let query = '';
   let params = [];
@@ -739,10 +733,7 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
     );
 
     if (reviewedByManagerId) {
-      await db.promise().query(
-        'UPDATE timesheets SET reviewed_by_manager_id = ? WHERE id = ?',
-        [reviewedByManagerId, id]
-      );
+      await db.promise().query('UPDATE timesheets SET reviewed_by_manager_id = ? WHERE id = ?', [reviewedByManagerId, id]);
     }
 
     const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;

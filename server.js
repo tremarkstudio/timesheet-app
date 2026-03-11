@@ -13,11 +13,16 @@ const app = express();
 
 // Gmail transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'mail.jimmac.co.za',           // ← confirm this in cPanel → Email Accounts → Connect Devices
+  port: 587,                           // 587 for TLS, 465 for SSL
+  secure: false,                       // false for 587 (STARTTLS), true for 465
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: 'noreply@jimmac.co.za',      // your full email address
+    pass: process.env.EMAIL_PASS       // email account password
   },
+  tls: {
+    rejectUnauthorized: false          // helpful if self-signed cert
+  }
 });
 
 transporter.verify((error, success) => {
@@ -1177,7 +1182,7 @@ app.post('/request-password-reset', async (req, res) => {
     // Send email
     const resetUrl = `https://system.jimmac.co.za/reset-password?token=${resetToken}`;
     const mailOptions = {
-      from: `"JIMMAC System" <${process.env.EMAIL_USER}>`,
+      from: `"JIMMAC Work Management System" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Password Reset Request',
       text: `Click this link to reset your password: ${resetUrl}\nLink expires in 1 hour.`,

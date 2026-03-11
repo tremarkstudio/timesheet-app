@@ -1,8 +1,8 @@
 // client/src/pages/UserManagement.js
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
-import { Edit, Trash2, Plus, X, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { Edit, Trash2, Plus, X, AlertTriangle, CheckCircle, Loader2, Key, Mail } from 'lucide-react';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -28,6 +28,7 @@ const UserManagement = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState({}); // track per-user reset loading
 
   const currentRoleId = parseInt(localStorage.getItem('role_id')) || 0;
   const isAdmin = [1, 2].includes(currentRoleId);
@@ -40,10 +41,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await api.get('/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/users');
       setUsers(res.data || []);
     } catch (err) {
       console.error('Failed to fetch users:', err);
@@ -55,18 +53,11 @@ const UserManagement = () => {
 
   const fetchAdmins = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await api.get('/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setAdmins(res.data.filter(u => [1, 2].includes(u.role_id)) || []);
+      const res = await api.get('/managers');
+      setAdmins(res.data || []);
     } catch (err) {
       console.error('Failed to fetch admins:', err);
     }
-  };
-
-  const handleRoleChange = (e) => {
-    setRole(e.target.value);
   };
 
   const resetForm = () => {
@@ -97,28 +88,36 @@ const UserManagement = () => {
     setSuccess('');
     setSaving(true);
 
-    const token = localStorage.getItem('token');
-    const url = editingUser ? `/users/${editingUser.id}` : '}/users';
-    const method = editingUser ? 'put' : 'post';
-
-    // Prepare payload - exclude password on edit
     const payload = { ...formData, role_id: parseInt(role) };
-    if (editingUser) {
-      delete payload.password; // prevent password change via this form
-    }
+    if (editingUser) delete payload.password; // don't overwrite password on edit
 
     try {
-      await axios[method](url, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (editingUser) {
+        await api.put(`/users/${editingUser.id}`, payload);
+        setSuccess('User updated successfully');
+      } else {
+        const res = await api.post('/users', payload);
+        setSuccess('User created successfully');
 
-      setSuccess(editingUser ? 'User updated successfully' : 'User created successfully');
+        // Send welcome email with credentials
+        try {
+          await api.post('/send-welcome-email', {
+            email: formData.email,
+            username: formData.username,
+            password: formData.password,
+            name: `${formData.first_name} ${formData.last_name}`.trim() || formData.username,
+          });
+          console.log('Welcome email sent');
+        } catch (emailErr) {
+          console.error('Welcome email failed:', emailErr);
+          setError('User created, but welcome email failed to send');
+        }
+      }
+
       resetForm();
       fetchUsers();
     } catch (err) {
-      const errMsg = err.response?.data?.error || 'Error saving user';
-      console.error('Update failed:', err);
-      setError(errMsg);
+      setError(err.response?.data?.error || 'Error saving user');
     } finally {
       setSaving(false);
     }
@@ -129,7 +128,7 @@ const UserManagement = () => {
     setRole(user.role_id.toString());
     setFormData({
       username: user.username,
-      password: '', // blank on edit - password change not allowed here
+      password: '',
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       email: user.email || '',
@@ -148,10 +147,7 @@ const UserManagement = () => {
     if (!window.confirm('Delete user? This cannot be undone.')) return;
 
     try {
-      const token = localStorage.getItem('token');
-      await api.delete(`/users/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/users/${id}`);
       setSuccess('User deleted successfully');
       fetchUsers();
     } catch (err) {
@@ -159,21 +155,44 @@ const UserManagement = () => {
     }
   };
 
+  const handleResetPassword = async (user) => {
+    if (!user.email) {
+      setError('User has no email address');
+      return;
+    }
+
+    if (!window.confirm(`Send password reset link to ${user.email}?`)) return;
+
+    setResetting(prev => ({ ...prev, [user.id]: true }));
+
+    try {
+      await api.post('/request-password-reset', { email: user.email });
+      setSuccess(`Password reset link sent to ${user.email}`);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to send reset link');
+    } finally {
+      setResetting(prev => ({ ...prev, [user.id]: false }));
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-lg text-gray-600">
-        <Loader2 className="animate-spin mr-3" size={24} />
-        Loading users...
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="animate-spin mr-3" size={32} />
+        <span className="text-xl text-gray-600">Loading users...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-8">
+    <div className="min-h-screen bg-gray-50 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-10">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900">User Management</h1>
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">User Management</h1>
+            <p className="text-gray-600 mt-2">Manage employees, admins, and developers</p>
+          </div>
 
           {isAdmin && (
             <button
@@ -181,60 +200,59 @@ const UserManagement = () => {
                 resetForm();
                 setShowForm(true);
               }}
-              className="flex items-center gap-3 px-8 py-4 bg-custom-orange text-white rounded-xl hover:bg-orange-600 shadow-md transition text-lg font-medium"
+              className="flex items-center gap-3 px-8 py-4 bg-orange-600 text-white rounded-xl hover:bg-orange-700 shadow-lg transition transform hover:-translate-y-1"
             >
-              <Plus size={22} /> Add New User
+              <Plus size={22} />
+              Add New User
             </button>
           )}
         </div>
 
-        {/* Feedback Messages */}
+        {/* Messages */}
         {error && (
-          <div className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-xl border border-red-200">
-            <AlertTriangle size={20} />
+          <div className="flex items-center gap-3 p-5 bg-red-50 text-red-700 rounded-2xl border border-red-200 shadow-sm">
+            <AlertTriangle size={24} />
             <p>{error}</p>
           </div>
         )}
         {success && (
-          <div className="flex items-center gap-3 p-4 bg-green-50 text-green-700 rounded-xl border border-green-200">
-            <CheckCircle size={20} />
+          <div className="flex items-center gap-3 p-5 bg-green-50 text-green-700 rounded-2xl border border-green-200 shadow-sm">
+            <CheckCircle size={24} />
             <p>{success}</p>
           </div>
         )}
 
         {/* Users Table */}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-max">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Name</th>
-                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Username</th>
-                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Role</th>
-                  {isAdmin && (
-                    <th className="px-8 py-5 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                  )}
+                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Name</th>
+                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Username</th>
+                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Email</th>
+                  <th className="px-8 py-5 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Role</th>
+                  {isAdmin && <th className="px-8 py-5 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 5 : 4} className="text-center py-10 text-gray-500">
+                    <td colSpan={isAdmin ? 5 : 4} className="text-center py-16 text-gray-500 text-lg">
                       No users found
                     </td>
                   </tr>
                 ) : (
                   users.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50 transition">
-                      <td className="px-8 py-6 whitespace-nowrap">
+                      <td className="px-8 py-6 whitespace-nowrap font-medium text-gray-900">
                         {user.first_name} {user.last_name}
                       </td>
-                      <td className="px-8 py-6 whitespace-nowrap font-medium">{user.username}</td>
-                      <td className="px-8 py-6 whitespace-nowrap">{user.email || '—'}</td>
+                      <td className="px-8 py-6 whitespace-nowrap text-gray-700">{user.username}</td>
+                      <td className="px-8 py-6 whitespace-nowrap text-gray-700">{user.email || '—'}</td>
                       <td className="px-8 py-6 whitespace-nowrap">
                         <span
-                          className={`inline-flex px-3 py-1 text-sm font-medium rounded-full ${
+                          className={`inline-flex px-4 py-1.5 text-sm font-medium rounded-full ${
                             user.role_id === 1
                               ? 'bg-purple-100 text-purple-800'
                               : user.role_id === 2
@@ -247,7 +265,7 @@ const UserManagement = () => {
                       </td>
                       {isAdmin && (
                         <td className="px-8 py-6 whitespace-nowrap">
-                          <div className="flex gap-4">
+                          <div className="flex gap-5">
                             <button
                               onClick={() => handleEdit(user)}
                               className="text-blue-600 hover:text-blue-800 transition"
@@ -255,6 +273,22 @@ const UserManagement = () => {
                             >
                               <Edit size={22} />
                             </button>
+
+                            <button
+                              onClick={() => handleResetPassword(user)}
+                              disabled={resetting[user.id]}
+                              className={`text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1 ${
+                                resetting[user.id] ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                              title="Reset password"
+                            >
+                              {resetting[user.id] ? (
+                                <Loader2 size={20} className="animate-spin" />
+                              ) : (
+                                <Key size={22} />
+                              )}
+                            </button>
+
                             <button
                               onClick={() => handleDelete(user.id)}
                               className="text-red-600 hover:text-red-800 transition"
@@ -275,30 +309,30 @@ const UserManagement = () => {
 
         {/* Add/Edit User Modal */}
         {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
               {/* Modal Header */}
-              <div className="sticky top-0 bg-white z-10 border-b px-8 py-6 flex justify-between items-center">
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-                  {editingUser ? 'Edit User' : 'Add New User'}
+              <div className="sticky top-0 bg-white z-10 border-b px-10 py-6 flex justify-between items-center">
+                <h2 className="text-3xl font-bold text-gray-900">
+                  {editingUser ? 'Edit User' : 'Create New User'}
                 </h2>
                 <button
                   onClick={resetForm}
-                  className="text-gray-600 hover:text-gray-800 transition"
+                  className="text-gray-500 hover:text-gray-800 transition p-2 rounded-full hover:bg-gray-100"
                 >
                   <X size={32} />
                 </button>
               </div>
 
               {/* Modal Body */}
-              <form onSubmit={handleSubmit} className="p-8 md:p-10 space-y-8">
+              <form onSubmit={handleSubmit} className="p-10 space-y-10">
                 {/* Role Selection */}
-                <div>
-                  <label className="block text-lg font-medium text-gray-700 mb-3">Role *</label>
+                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                  <label className="block text-xl font-semibold text-gray-800 mb-4">Role *</label>
                   <select
                     value={role}
-                    onChange={handleRoleChange}
-                    className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg bg-white"
                     required
                   >
                     <option value="3">Employee</option>
@@ -310,28 +344,25 @@ const UserManagement = () => {
                 {/* Username & Password */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">
-                      Username *
-                    </label>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Username *</label>
                     <input
                       type="text"
                       value={formData.username}
                       onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                       required
-                      disabled={!!editingUser} // Username can't be changed
+                      disabled={!!editingUser}
                     />
                   </div>
+
                   {!editingUser && (
                     <div>
-                      <label className="block text-lg font-medium text-gray-700 mb-3">
-                        Password *
-                      </label>
+                      <label className="block text-xl font-semibold text-gray-800 mb-4">Password *</label>
                       <input
                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                        className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                         required
                         minLength={8}
                       />
@@ -339,36 +370,49 @@ const UserManagement = () => {
                   )}
                 </div>
 
-                {/* Employee ID */}
-                <div>
-                  <label className="block text-lg font-medium text-gray-700 mb-3">Employee ID</label>
-                  <input
-                    type="text"
-                    value={formData.employee_id}
-                    onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                    className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
-                    placeholder="e.g. EMP001"
-                  />
+                {/* Employee ID & Email */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Employee ID</label>
+                    <input
+                      type="text"
+                      value={formData.employee_id}
+                      onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
+                      placeholder="e.g. EMP001"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Work Email</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
+                    />
+                  </div>
                 </div>
 
                 {/* Personal Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">First Name</label>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">First Name</label>
                     <input
                       type="text"
                       value={formData.first_name}
                       onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Last Name</label>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Last Name</label>
                     <input
                       type="text"
                       value={formData.last_name}
                       onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                     />
                   </div>
                 </div>
@@ -376,43 +420,22 @@ const UserManagement = () => {
                 {/* Job & Department */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Job Title</label>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Job Title</label>
                     <input
                       type="text"
                       value={formData.job_title}
                       onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Department / Team</label>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Department / Team</label>
                     <input
                       type="text"
                       value={formData.department}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
-                    />
-                  </div>
-                </div>
-
-                {/* Contact */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Work Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Work Phone / Extension</label>
-                    <input
-                      type="text"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                     />
                   </div>
                 </div>
@@ -420,36 +443,37 @@ const UserManagement = () => {
                 {/* Employment Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Employment Type</label>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Employment Type</label>
                     <select
                       value={formData.employment_type}
                       onChange={(e) => setFormData({ ...formData, employment_type: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                     >
                       <option value="Full-time">Full-time</option>
                       <option value="Part-time">Part-time</option>
                       <option value="Contract">Contract</option>
                     </select>
                   </div>
+
                   <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Start Date</label>
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Start Date</label>
                     <input
                       type="date"
                       value={formData.start_date}
                       onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                     />
                   </div>
                 </div>
 
-                {/* Manager - only for employees */}
+                {/* Manager (only for employees) */}
                 {role === '3' && (
-                  <div>
-                    <label className="block text-lg font-medium text-gray-700 mb-3">Manager</label>
+                  <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                    <label className="block text-xl font-semibold text-gray-800 mb-4">Manager</label>
                     <select
                       value={formData.manager_id}
                       onChange={(e) => setFormData({ ...formData, manager_id: e.target.value })}
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-custom-orange focus:border-transparent text-lg"
+                      className="w-full px-6 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg"
                     >
                       <option value="">Select Manager</option>
                       {admins.map((admin) => (
@@ -462,27 +486,32 @@ const UserManagement = () => {
                 )}
 
                 {/* Form Actions */}
-                <div className="flex flex-col sm:flex-row gap-6 pt-8 border-t">
+                <div className="flex flex-col sm:flex-row gap-6 pt-10 border-t">
                   <button
                     type="submit"
                     disabled={saving}
-                    className={`flex-1 py-4 rounded-xl font-medium text-lg shadow-md transition ${
-                      saving ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-custom-orange text-white hover:bg-orange-600'
+                    className={`flex-1 py-5 rounded-xl font-semibold text-xl shadow-lg transition-all transform hover:scale-105 ${
+                      saving
+                        ? 'bg-gray-400 cursor-not-allowed text-white'
+                        : 'bg-orange-600 text-white hover:bg-orange-700'
                     }`}
                   >
                     {saving ? (
                       <>
-                        <Loader2 className="inline animate-spin mr-2" size={20} />
+                        <Loader2 className="inline animate-spin mr-3" size={24} />
                         Saving...
                       </>
+                    ) : editingUser ? (
+                      'Update User'
                     ) : (
-                      editingUser ? 'Update User' : 'Create User'
+                      'Create User'
                     )}
                   </button>
+
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="flex-1 py-4 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition font-medium text-lg"
+                    className="flex-1 py-5 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition font-semibold text-xl"
                   >
                     Cancel
                   </button>

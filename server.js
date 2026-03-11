@@ -711,27 +711,27 @@ app.put('/timesheets/:id', authenticate, async (req, res) => {
   }
 });
 
-// APPROVE TIMESHEET (Admin/Dev)
+// APPROVE TIMESHEET
 app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, res) => {
   const { id } = req.params;
   const { reviewNote, reviewedByManagerId } = req.body || {};
   const approver_id = req.user?.id;
 
   if (!approver_id) return res.status(401).json({ error: 'Not authenticated' });
-  if (!reviewNote?.trim()) return res.status(400).json({ error: 'Review note required' });
+  if (!reviewNote?.trim()) return res.status(400).json({ error: 'Review note is required' });
 
   try {
-    const [ts] = await db.promise().query(
+    const [tsRows] = await db.promise().query(
       'SELECT user_id, date FROM timesheets WHERE id = ? AND status = "pending"',
       [id]
     );
 
-    if (!ts || ts.length === 0) {
+    if (tsRows.length === 0) {
       return res.status(404).json({ error: 'Timesheet not found or not pending' });
     }
 
-    const employeeId = ts[0].user_id;
-    const timesheetDate = ts[0].date;
+    const employeeId = tsRows[0].user_id;
+    const timesheetDate = tsRows[0].date;
 
     await db.promise().query(
       'UPDATE timesheets SET status = "approved", approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
@@ -745,53 +745,55 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
       );
     }
 
-    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been approved.\nReview note: ${reviewNote}`;
+    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;
+
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
       [employeeId, 'Timesheet Approved', message, id]
     );
 
-    res.json({ message: 'Timesheet approved' });
+    res.json({ message: 'Timesheet approved successfully' });
   } catch (err) {
     console.error('Approve error:', err.message, err.stack);
     res.status(500).json({ error: 'Failed to approve timesheet' });
   }
 });
 
-// REJECT TIMESHEET (Admin/Dev)
+// REJECT TIMESHEET
 app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, res) => {
   const { id } = req.params;
   const { rejectNote } = req.body || {};
   const rejector_id = req.user?.id;
 
   if (!rejector_id) return res.status(401).json({ error: 'Not authenticated' });
-  if (!rejectNote?.trim()) return res.status(400).json({ error: 'Reject note required' });
+  if (!rejectNote?.trim()) return res.status(400).json({ error: 'Reject reason is required' });
 
   try {
-    const [ts] = await db.promise().query(
+    const [tsRows] = await db.promise().query(
       'SELECT user_id, date FROM timesheets WHERE id = ? AND status = "pending"',
       [id]
     );
 
-    if (!ts || ts.length === 0) {
+    if (tsRows.length === 0) {
       return res.status(404).json({ error: 'Timesheet not found or not pending' });
     }
 
-    const employeeId = ts[0].user_id;
-    const timesheetDate = ts[0].date;
+    const employeeId = tsRows[0].user_id;
+    const timesheetDate = tsRows[0].date;
 
     await db.promise().query(
       'UPDATE timesheets SET status = "disapproved", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
       [rejector_id, rejectNote, id]
     );
 
-    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been disapproved.\nReason: ${rejectNote}`;
+    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been REJECTED.\nReason: ${rejectNote}`;
+
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
-      [employeeId, 'Timesheet Disapproved', message, id]
+      [employeeId, 'Timesheet Rejected', message, id]
     );
 
-    res.json({ message: 'Timesheet rejected' });
+    res.json({ message: 'Timesheet rejected successfully' });
   } catch (err) {
     console.error('Reject error:', err.message, err.stack);
     res.status(500).json({ error: 'Failed to reject timesheet' });
@@ -1089,4 +1091,60 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
+});
+
+
+// Add this route somewhere in server.js (after other routes)
+app.post('/send-welcome-email', async (req, res) => {
+  const { email, username, password, name } = req.body;
+
+  if (!email || !username || !password) {
+    return res.status(400).json({ error: 'Missing email, username, or password' });
+  }
+
+  try {
+    const loginLink = 'https://system.jimmac.co.za/login'; // your actual login URL
+
+    const text = `
+      Welcome to Jimmac Timesheet, ${name || 'Team Member'}!
+
+      Your account has been created. Here are your login details:
+
+      Username: ${username}
+      Password: ${password}
+
+      Login here: ${loginLink}
+
+      Please change your password after first login for security.
+
+      Best regards,
+      Jimmac Team
+    `;
+
+    const html = `
+      <h2 style="color: #f97316;">Welcome to Jimmac Timesheet!</h2>
+      <p>Hi ${name || 'Team Member'},</p>
+      <p>Your account has been successfully created. Here are your login credentials:</p>
+      <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p><strong>Username:</strong> ${username}</p>
+        <p><strong>Password:</strong> ${password}</p>
+      </div>
+      <p>Login here: <a href="${loginLink}" style="color: #f97316; font-weight: bold;">${loginLink}</a></p>
+      <p><small>Please change your password after your first login for security.</small></p>
+      <p>Best regards,<br/>Jimmac Team</p>
+    `;
+
+    await transporter.sendMail({
+      from: `"JIMMAC System" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Welcome to Jimmac Timesheet - Your Account Details',
+      text,
+      html,
+    });
+
+    res.json({ message: 'Welcome email sent' });
+  } catch (err) {
+    console.error('Welcome email error:', err);
+    res.status(500).json({ error: 'Failed to send welcome email' });
+  }
 });

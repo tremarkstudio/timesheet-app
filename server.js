@@ -37,19 +37,40 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ==================== MIDDLEWARE ====================
+
+// CORS - allow your production frontend + local dev
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173', // Vite if you use it
+  'https://system.jimmac.co.za',        // your current production domain
+  'https://app.jimmac.co.za',           // if you use this too
+  'https://timesheet-app-fontend.onrender.com', // old preview (keep for now)
+];
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://timesheet-app-fontend.onrender.com',   // ← CHANGE TO YOUR ACTUAL FRONTEND URL
-    'https://app.jimmac.co.za'
-  ],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
+  optionsSuccessStatus: 204
 }));
 
+// Handle preflight OPTIONS requests manually as fallback
+app.options('*', cors());
+
+// Parse JSON bodies
 app.use(express.json());
+
+// Serve static uploads
 app.use('/uploads', express.static('uploads'));
 
-// Simple request logger (helps debugging)
+// Request logger
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
@@ -62,22 +83,19 @@ const db = mysql.createConnection({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 20110,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
 db.connect(err => {
   if (err) {
     console.error('MySQL connection failed:', err.message);
     console.log('⚠️ Server is running WITHOUT database connection for now.');
-    // process.exit(1);   ← COMMENTED OUT so it doesn't crash
   } else {
     console.log('MySQL connected successfully');
   }
 });
 
-// Auth middleware (improved)
+// Auth middleware
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -102,8 +120,8 @@ const authenticate = (req, res, next) => {
 
 // Role middleware
 const restrictTo = (...roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role_id)) {
-    return res.status(403).json({ error: 'Access denied' });
+  if (!req.user || !roles.includes(req.user.role_id)) {
+    return res.status(403).json({ error: 'Access denied - insufficient role' });
   }
   next();
 };
@@ -144,7 +162,7 @@ app.get('/dashboard-data', authenticate, async (req, res) => {
 
   try {
     const [results] = await db.promise().query(query, params);
-    const total_hours = results[0]?.total_hours || 0; // safe access
+    const total_hours = results[0]?.total_hours || 0;
     const time_value = total_hours * 50;
 
     res.json({
@@ -157,6 +175,7 @@ app.get('/dashboard-data', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Server error fetching dashboard data' });
   }
 });
+
 // ────────────────────────────────────────────────
 // NOTIFICATIONS
 // ────────────────────────────────────────────────
@@ -165,7 +184,10 @@ app.get('/notifications', authenticate, (req, res) => {
     'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
     [req.user.id],
     (err, results) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
+      if (err) {
+        console.error('Notifications error:', err.message);
+        return res.status(500).json({ error: 'Database error' });
+      }
       res.json(results || []);
     }
   );
@@ -176,17 +198,28 @@ app.get('/notifications', authenticate, (req, res) => {
 // ────────────────────────────────────────────────
 app.post('/register', async (req, res) => {
   const { username, password, role_id } = req.body;
+
+  if (!username || !password || !role_id) {
+    return res.status(400).json({ error: 'Username, password, and role required' });
+  }
+
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     db.query(
       'INSERT INTO users (username, password, role_id) VALUES (?, ?, ?)',
       [username, hashedPassword, role_id],
       (err, result) => {
-        if (err) return res.status(400).json({ error: 'Username taken or invalid role' });
+        if (err) {
+          if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: 'Username already exists' });
+          }
+          return res.status(500).json({ error: 'Database error' });
+        }
         res.status(201).json({ message: 'User registered', id: result.insertId });
       }
     );
   } catch (error) {
+    console.error('Register error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -196,14 +229,28 @@ app.post('/register', async (req, res) => {
 // ────────────────────────────────────────────────
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
+
   db.query('SELECT * FROM users WHERE username = ?', [username], async (err, results) => {
-    if (err || results.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+    if (err) {
+      console.error('Login DB error:', err);
+      return res.status(500).json({ error: 'Server error' });
+    }
+    if (results.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
     const user = results[0];
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     const token = jwt.sign({ id: user.id, role_id: user.role_id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, username, role_id: user.role_id } });
+
+    res.json({
+      token,
+      user: { id: user.id, username: user.username, role_id: user.role_id }
+    });
   });
 });
 
@@ -212,18 +259,29 @@ app.post('/login', (req, res) => {
 // ────────────────────────────────────────────────
 app.get('/users/me', authenticate, async (req, res) => {
   const userId = req.user.id;
-  const [results] = await db.promise().query(
-    `SELECT id, username, first_name, last_name, email, phone, role_id,
-            employee_id, department, job_title, employment_type, start_date,
-            manager_id, leave_balance
-     FROM users WHERE id = ?`,
-    [userId]
-  );
-  if (results.length === 0) return res.status(404).json({ error: 'User not found' });
-  res.json(results[0]);
+
+  try {
+    const [results] = await db.promise().query(
+      `SELECT id, username, first_name, last_name, email, phone, role_id,
+              employee_id, department, job_title, employment_type, start_date,
+              manager_id, leave_balance
+       FROM users WHERE id = ?`,
+      [userId]
+    );
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(results[0]);
+  } catch (err) {
+    console.error('Users/me error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
+
 // ────────────────────────────────────────────────
-// GET SINGLE USER BY ID (authenticated access)
+// GET SINGLE USER BY ID (authenticated)
 // ────────────────────────────────────────────────
 app.get('/users/:id', authenticate, (req, res) => {
   const { id } = req.params;
@@ -235,23 +293,25 @@ app.get('/users/:id', authenticate, (req, res) => {
      FROM users WHERE id = ?`,
     [id],
     (err, results) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      if (results.length === 0) return res.status(404).json({ error: 'User not found' });
+      if (err) {
+        console.error('Get user error:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
 
       const user = results[0];
 
-      // Employees can only fetch their own manager or admins
-      if (currentRole === 3) {
-        if (user.role_id === 3 && id !== currentUserId) {
-          return res.status(403).json({ error: 'Cannot view other employees' });
-        }
-        // Allow manager or admin
+      if (currentRole === 3 && user.role_id === 3 && id !== currentUserId) {
+        return res.status(403).json({ error: 'Cannot view other employees' });
       }
 
       res.json(user);
     }
   );
 });
+
 // ────────────────────────────────────────────────
 // GET ALL USERS (Admin/Dev only)
 // ────────────────────────────────────────────────
@@ -261,7 +321,10 @@ app.get('/users', authenticate, restrictTo(1, 2), (req, res) => {
             employee_id, manager_id, job_title, department, employment_type, start_date
      FROM users ORDER BY id`,
     (err, results) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
+      if (err) {
+        console.error('Get all users error:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
       res.json(results || []);
     }
   );
@@ -280,7 +343,10 @@ app.get('/managers', authenticate, (req, res) => {
   }
 
   db.query(query, params, (err, results) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
+    if (err) {
+      console.error('Managers error:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
     res.json(results || []);
   });
 });
@@ -314,20 +380,21 @@ app.post('/users', authenticate, restrictTo(1, 2), async (req, res) => {
       (err, result) => {
         if (err) {
           if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Username already exists' });
+          console.error('Create user DB error:', err);
           return res.status(500).json({ error: 'Database error' });
         }
         res.status(201).json({ message: 'User created', id: result.insertId });
       }
     );
   } catch (err) {
+    console.error('Create user error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ────────────────────────────────────────────────
- // UPDATE USER (Admin/Dev: full | Employee: limited)
+// UPDATE USER (Admin/Dev)
 // ────────────────────────────────────────────────
-// Admin update user (PUT /users/:id)
 app.put('/users/:id', authenticate, restrictTo(1, 2), upload.single('avatar'), async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
@@ -336,7 +403,6 @@ app.put('/users/:id', authenticate, restrictTo(1, 2), upload.single('avatar'), a
     let fields = [];
     let values = [];
 
-    // Allowed fields for update
     const allowedFields = [
       'username', 'first_name', 'last_name', 'email', 'phone',
       'job_title', 'department', 'employment_type', 'start_date',
@@ -350,14 +416,12 @@ app.put('/users/:id', authenticate, restrictTo(1, 2), upload.single('avatar'), a
       }
     });
 
-    // Special handling for password
     if (updates.password) {
       const hashed = await bcrypt.hash(updates.password, 10);
       fields.push('password = ?');
       values.push(hashed);
     }
 
-    // Avatar upload
     if (req.file) {
       fields.push('avatar_url = ?');
       values.push(req.file.path.replace(/^public\//, 'uploads/'));
@@ -381,20 +445,15 @@ app.put('/users/:id', authenticate, restrictTo(1, 2), upload.single('avatar'), a
     res.json({ message: 'User updated successfully' });
   } catch (err) {
     console.error('Admin user update error:', err);
-    res.status(500).json({ 
-      error: 'Failed to update user',
-      details: err.message || 'Database error'
-    });
+    res.status(500).json({ error: 'Failed to update user', details: err.message });
   }
 });
 
 // ────────────────────────────────────────────────
-// SELF-UPDATE PROFILE (/users/me) — any authenticated user
+// SELF-UPDATE PROFILE (/users/me)
 // ────────────────────────────────────────────────
 app.put('/users/me', authenticate, upload.single('avatar'), async (req, res) => {
   const userId = req.user.id;
-
-  console.log('PUT /users/me - User ID:', userId, 'Body:', req.body, 'File:', req.file);
 
   const allowed = {};
   const safeFields = [
@@ -408,7 +467,6 @@ app.put('/users/me', authenticate, upload.single('avatar'), async (req, res) => 
     }
   });
 
-  // Avatar
   if (req.file) {
     allowed.avatar_url = req.file.path.replace(/^public\//, '');
   }
@@ -425,9 +483,12 @@ app.put('/users/me', authenticate, upload.single('avatar'), async (req, res) => 
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 // ────────────────────────────────────────────────
-// GET TIMESHEETS (with tasks array)
+// TIMESHEET ROUTES (GET, POST, PUT, APPROVE, REJECT, LOCK)
 // ────────────────────────────────────────────────
+
+// GET ALL TIMESHEETS (with tasks)
 app.get('/timesheets', authenticate, (req, res) => {
   const userId = req.user.id;
   const roleId = req.user.role_id;
@@ -448,7 +509,10 @@ app.get('/timesheets', authenticate, (req, res) => {
   const params = roleId === 3 ? [userId] : [];
 
   db.query(query, params, (err, entries) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
+    if (err) {
+      console.error('Timesheets fetch error:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
 
     const entryIds = entries.map(e => e.id);
     if (entryIds.length === 0) return res.json([]);
@@ -460,7 +524,10 @@ app.get('/timesheets', authenticate, (req, res) => {
        ORDER BY id`,
       [entryIds],
       (err, tasks) => {
-        if (err) return res.status(500).json({ error: 'Database error' });
+        if (err) {
+          console.error('Tasks fetch error:', err);
+          return res.status(500).json({ error: 'Database error' });
+        }
 
         const tasksByEntry = {};
         tasks.forEach(t => {
@@ -488,9 +555,7 @@ app.get('/timesheets', authenticate, (req, res) => {
   });
 });
 
-// ────────────────────────────────────────────────
-// GET SINGLE TIMESHEET (with tasks)
-// ────────────────────────────────────────────────
+// GET SINGLE TIMESHEET
 app.get('/timesheets/:id', authenticate, (req, res) => {
   const { id } = req.params;
 
@@ -532,9 +597,7 @@ app.get('/timesheets/:id', authenticate, (req, res) => {
   );
 });
 
-// ────────────────────────────────────────────────
-// SUBMIT NEW TIMESHEET (employee)
-// ────────────────────────────────────────────────
+// SUBMIT NEW TIMESHEET
 app.post('/timesheets', authenticate, upload.single('attachment'), async (req, res) => {
   const userId = req.user.id;
   const { date, tasks } = req.body;
@@ -557,7 +620,6 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
   const totalHours = parsedTasks.reduce((sum, t) => sum + Number(t.hours || 0), 0);
 
   try {
-    // Insert timesheet
     const [result] = await db.promise().query(
       `INSERT INTO timesheets 
        (user_id, date, status, attachment_path, date_submitted, total_hours) 
@@ -567,7 +629,6 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
 
     const timesheetId = result.insertId;
 
-    // Insert tasks
     if (parsedTasks.length > 0) {
       const taskValues = parsedTasks.map(t => [
         timesheetId,
@@ -586,17 +647,11 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
       );
     }
 
-    res.status(201).json({ 
-      message: 'Timesheet submitted successfully', 
-      id: timesheetId 
-    });
+    res.status(201).json({ message: 'Timesheet submitted successfully', id: timesheetId });
   } catch (err) {
     console.error('Timesheet submission error:', err);
-    console.error('SQL Message:', err.sqlMessage || err.message);
-    console.error('SQL:', err.sql || 'Not available');
-
     let userMessage = 'Failed to submit timesheet';
-    
+
     if (err.code === 'ER_BAD_FIELD_ERROR') {
       userMessage = `Database error: Missing or unknown column (${err.sqlMessage || err.message})`;
     } else if (err.code === 'ER_NO_REFERENCED_ROW_2') {
@@ -609,9 +664,7 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
   }
 });
 
-// ────────────────────────────────────────────────
 // UPDATE TIMESHEET (employee edit)
-// ────────────────────────────────────────────────
 app.put('/timesheets/:id', authenticate, async (req, res) => {
   const { id } = req.params;
   const { tasks } = req.body;
@@ -659,9 +712,7 @@ app.put('/timesheets/:id', authenticate, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────
 // APPROVE TIMESHEET (Admin/Dev)
-// ────────────────────────────────────────────────
 app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, res) => {
   const { id } = req.params;
   const { reviewNote, reviewedByManagerId } = req.body;
@@ -676,7 +727,6 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
   }
 
   try {
-    // Check existence and pending status
     const [tsRows] = await db.promise().query(
       'SELECT user_id, date FROM timesheets WHERE id = ? AND status = "pending"',
       [id]
@@ -689,7 +739,6 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
     const employeeId = tsRows[0].user_id;
     const timesheetDate = tsRows[0].date;
 
-    // Perform update
     await db.promise().query(
       'UPDATE timesheets SET status = "approved", approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
       [approver_id, reviewNote, id]
@@ -702,7 +751,6 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
       );
     }
 
-    // Notify
     const employeeMessage = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;
 
     await db.promise().query(
@@ -721,9 +769,8 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
     res.status(500).json({ error: 'Failed to approve timesheet' });
   }
 });
-// ────────────────────────────────────────────────
+
 // REJECT TIMESHEET (Admin/Dev)
-// ────────────────────────────────────────────────
 app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, res) => {
   const { id } = req.params;
   const { rejectNote } = req.body;
@@ -774,9 +821,7 @@ app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, re
   }
 });
 
-// ────────────────────────────────────────────────
 // LOCK TIMESHEET
-// ────────────────────────────────────────────────
 app.put('/timesheets/:id/lock', authenticate, restrictTo(1, 2), (req, res) => {
   const { id } = req.params;
 
@@ -785,17 +830,16 @@ app.put('/timesheets/:id/lock', authenticate, restrictTo(1, 2), (req, res) => {
     [id],
     (err, result) => {
       if (err || result.affectedRows === 0) {
-        return res.status(500).json({ error: 'Failed to lock' });
+        return res.status(500).json({ error: 'Failed to lock timesheet' });
       }
       res.json({ message: 'Timesheet locked' });
     }
   );
 });
 
-// Static files for attachments
-app.use('/uploads', express.static('uploads'));
-
-// Get messages for a task
+// ────────────────────────────────────────────────
+// MESSAGES
+// ────────────────────────────────────────────────
 app.get('/messages/user/:userId', authenticate, (req, res) => {
   const { userId } = req.params;
   const currentId = req.user.id;
@@ -808,7 +852,10 @@ app.get('/messages/user/:userId', authenticate, (req, res) => {
      ORDER BY m.created_at ASC`,
     [currentId, userId, userId, currentId],
     (err, results) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
+      if (err) {
+        console.error('Messages fetch error:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
       res.json(results);
     }
   );
@@ -818,7 +865,20 @@ app.post('/messages', authenticate, (req, res) => {
   const { content, recipientId } = req.body;
   const senderId = req.user.id;
 
-  // Optional: employees can only send to their manager or admins
+  const insertMessage = () => {
+    db.query(
+      'INSERT INTO messages (sender_id, recipient_id, content) VALUES (?, ?, ?)',
+      [senderId, recipientId, content],
+      err => {
+        if (err) {
+          console.error('Message insert error:', err);
+          return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ message: 'Message sent' });
+      }
+    );
+  };
+
   if (req.user.role_id === 3) {
     db.query('SELECT manager_id FROM users WHERE id = ?', [senderId], (err, results) => {
       if (err || results.length === 0) return res.status(400).json({ error: 'No manager assigned' });
@@ -831,21 +891,11 @@ app.post('/messages', authenticate, (req, res) => {
   } else {
     insertMessage();
   }
-
-  function insertMessage() {
-    db.query(
-      'INSERT INTO messages (sender_id, recipient_id, content) VALUES (?, ?, ?)',
-      [senderId, recipientId, content],
-      err => {
-        if (err) return res.status(500).json({ error: 'Database error' });
-        res.json({ message: 'Message sent' });
-      }
-    );
-  }
 });
 
-
-// GET leave applications (employee sees own, admin sees filtered or all)
+// ────────────────────────────────────────────────
+// LEAVE ROUTES
+// ────────────────────────────────────────────────
 app.get('/leave', authenticate, async (req, res) => {
   const userId = req.user.id;
   const roleId = req.user.role_id;
@@ -875,7 +925,10 @@ app.get('/leave', authenticate, async (req, res) => {
     const pending = results.filter(r => r.status === 'pending');
     const recent = results.slice(0, 10);
 
-    const [balRes] = await db.promise().query('SELECT leave_balance FROM users WHERE id = ?', [targetUserId || userId]);
+    const [balRes] = await db.promise().query(
+      'SELECT leave_balance FROM users WHERE id = ?',
+      [targetUserId || userId]
+    );
 
     res.json({
       balance: balRes[0]?.leave_balance || 20,
@@ -883,11 +936,11 @@ app.get('/leave', authenticate, async (req, res) => {
       recent,
     });
   } catch (err) {
-    console.error(err);
+    console.error('Leave fetch error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
-// POST new leave application (employee)
+
 app.post('/leave', authenticate, upload.single('attachment'), async (req, res) => {
   const userId = req.user.id;
   const { type, startDate, endDate, reason } = req.body;
@@ -903,9 +956,9 @@ app.post('/leave', authenticate, upload.single('attachment'), async (req, res) =
       [userId, type, startDate, endDate, days, reason, attachment_path]
     );
 
-    const leaveId = result.insertId;  
+    const leaveId = result.insertId;
 
-    // ─── SEND EMAIL TO ALL ADMINS ─────────────────────────────────────────────
+    // Send email to admins (non-blocking)
     try {
       const [admins] = await db.promise().query(
         'SELECT email, first_name FROM users WHERE role_id IN (1, 2) AND email IS NOT NULL'
@@ -917,11 +970,11 @@ app.post('/leave', authenticate, upload.single('attachment'), async (req, res) =
           : req.user.username || 'An employee';
 
         const subject = `New Leave Application Pending Review - ${employeeName}`;
-        const text = `A new leave request from ${employeeName} has been submitted and is awaiting review.\n\n` +
+        const text = `A new leave request from ${employeeName} has been submitted.\n\n` +
                      `Type: ${type}\n` +
                      `Dates: ${new Date(startDate).toLocaleDateString('en-ZA')} - ${new Date(endDate).toLocaleDateString('en-ZA')}\n` +
                      `Days: ${days}\n\n` +
-                     `Review it here: http://localhost:3000/leave?review=${leaveId}`;
+                     `Review it here: https://system.jimmac.co.za/leave?review=${leaveId}`;
 
         const html = `
           <h2>New Leave Application Pending Review</h2>
@@ -931,7 +984,7 @@ app.post('/leave', authenticate, upload.single('attachment'), async (req, res) =
             <li><strong>Dates:</strong> ${new Date(startDate).toLocaleDateString('en-ZA')} - ${new Date(endDate).toLocaleDateString('en-ZA')}</li>
             <li><strong>Days:</strong> ${days}</li>
           </ul>
-          <p><a href="http://localhost:3000/leave?review=${leaveId}" style="color:#f97316; font-weight:bold;">Review Leave Request</a></p>
+          <p><a href="https://system.jimmac.co.za/leave?review=${leaveId}" style="color:#f97316; font-weight:bold;">Review Leave Request</a></p>
           <p style="color:#666; font-size:12px;">This is an automated notification from JIMMAC.</p>
         `;
 
@@ -948,8 +1001,7 @@ app.post('/leave', authenticate, upload.single('attachment'), async (req, res) =
         console.log(`Leave email notifications sent to ${admins.length} admins`);
       }
     } catch (emailErr) {
-      console.error('Failed to send leave notification emails:', emailErr);
-      // Don't fail the request
+      console.error('Leave email error (non-blocking):', emailErr);
     }
 
     res.status(201).json({ message: 'Leave application submitted', id: leaveId });
@@ -974,26 +1026,31 @@ app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) =
 
     const { user_id, days_applied } = leave[0];
 
-    // Deduct balance
     await db.promise().query(
       'UPDATE users SET leave_balance = leave_balance - ? WHERE id = ?',
       [days_applied, user_id]
     );
 
-    // Update status
     await db.promise().query(
       'UPDATE leave_applications SET status = "approved", approved_by = ?, approved_at = NOW() WHERE id = ?',
       [approverId, id]
     );
 
-    // Notify all admins
     const message = `Leave application by employee ${user_id} (${days_applied} days) has been APPROVED.`;
     const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
-    
+
+    const notifyValues = admins.map(a => [a.id, 'Leave Approved', message, id]);
+
+    if (notifyValues.length > 0) {
+      await db.promise().query(
+        'INSERT INTO notifications (user_id, title, message, related_leave_id) VALUES ?',
+        [notifyValues]
+      );
+    }
 
     res.json({ message: 'Leave approved' });
   } catch (err) {
-    console.error(err);
+    console.error('Approve leave error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1008,10 +1065,16 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
       [req.user.id, id]
     );
 
-    // Notify all admins
-    const [leave] = await db.promise().query('SELECT user_id, days_applied FROM leave_applications WHERE id = ?', [id]);
+    const [leave] = await db.promise().query(
+      'SELECT user_id, days_applied FROM leave_applications WHERE id = ?',
+      [id]
+    );
+
+    if (leave.length === 0) return res.status(404).json({ error: 'Leave not found' });
+
     const message = `Leave application by employee ${leave[0].user_id} (${leave[0].days_applied} days) has been REJECTED.`;
     const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
+
     const notifyValues = admins.map(a => [a.id, 'Leave Rejected', message, id]);
 
     if (notifyValues.length > 0) {
@@ -1023,11 +1086,10 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
 
     res.json({ message: 'Leave rejected' });
   } catch (err) {
-    console.error(err);
+    console.error('Reject leave error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 
 app.get('/test-email', async (req, res) => {
   try {
@@ -1044,7 +1106,6 @@ app.get('/test-email', async (req, res) => {
     res.status(500).send('Failed: ' + err.message);
   }
 });
-
 
 // ==================== SERVER START ====================
 const PORT = process.env.PORT || 5000;

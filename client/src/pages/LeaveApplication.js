@@ -1,6 +1,5 @@
 // client/src/pages/LeaveApplication.js
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { CheckCircle, XCircle, Send, Loader2, AlertTriangle, Filter } from 'lucide-react';
 import api from '../api/axios';
 
@@ -9,7 +8,7 @@ const LeaveApplication = () => {
   const [leaveBalances, setLeaveBalances] = useState({
     annual: 23,
     sick: 30,
-    compassionate: null,      // not tracked yet
+    compassionate: null,
     paternity: null,
     familyResponsibility: 3,
     unpaid: 0,
@@ -58,32 +57,29 @@ const LeaveApplication = () => {
 
   const fetchLeaveData = async () => {
     setLoading(true);
+    setError('');
     try {
-      const token = localStorage.getItem('token');
-      const endpoint = isAdmin && selectedUserId ? `process.env.REACT_APP_API_URL/leave?user_id=${selectedUserId}` : 'process.env.REACT_APP_API_URL/leave';
-      const res = await axios.get(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await api.get('/leave', {
+        params: selectedUserId ? { user_id: selectedUserId } : {},
       });
 
-      // If backend returns per-type balances, use them
-      // For now we use placeholders + single balance as annual
-     setLeaveBalances({
-  annual: res.data.annual_balance ?? 23,
-  sick: res.data.sick_balance ?? 30,
-  familyResponsibility: res.data.family_responsibility_balance ?? 3,
-  study: res.data.study_balance ?? 10,
-  paternity: res.data.paternity_balance ?? 3,
-  compassionate: null, // or track if needed
-  unpaid: 0,
-});
+      // Safely handle response (backend might return different structure per role)
+      const data = res.data || {};
+      setLeaveBalances({
+        annual: data.annual_balance ?? 23,
+        sick: data.sick_balance ?? 30,
+        familyResponsibility: data.family_responsibility_balance ?? 3,
+        study: data.study_balance ?? 10,
+        paternity: data.paternity_balance ?? 3,
+        compassionate: null,
+        unpaid: 0,
+      });
 
-      setRecentLeaves(res.data.recent || []);
-      if (isAdmin) {
-        setPendingLeaves(res.data.pending || []);
-      }
+      setRecentLeaves(Array.isArray(data.recent) ? data.recent : []);
+      setPendingLeaves(Array.isArray(data.pending) ? data.pending : []);
     } catch (err) {
       console.error('Failed to load leave data:', err);
-      setError('Failed to load leave information');
+      setError('Failed to load leave information. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -91,11 +87,8 @@ const LeaveApplication = () => {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('process.env.REACT_APP_API_URL/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setUsers(res.data || []);
+      const res = await api.get('/users');
+      setUsers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to load users:', err);
     }
@@ -103,11 +96,8 @@ const LeaveApplication = () => {
 
   const fetchAdmins = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('process.env.REACT_APP_API_URL/managers', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setAdmins(res.data || []);
+      const res = await api.get('/managers');
+      setAdmins(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to load admins:', err);
     }
@@ -124,10 +114,7 @@ const LeaveApplication = () => {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.post('process.env.REACT_APP_API_URL/leave', formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.post('/leave', formData);
       setSuccess('Leave application submitted successfully!');
       setFormData({ type: 'Annual Leave', startDate: '', endDate: '', reason: '' });
       fetchLeaveData(); // refresh
@@ -159,13 +146,10 @@ const LeaveApplication = () => {
     setError('');
 
     try {
-      const token = localStorage.getItem('token');
       const endpoint = actionType === 'approve' ? 'approve' : 'reject';
       const payload = actionType === 'approve' ? { onBehalfOf } : {};
 
-      await axios.put(`process.env.REACT_APP_API_URL/leave/${selectedRequest.id}/${endpoint}`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.put(`/leave/${selectedRequest.id}/${endpoint}`, payload);
 
       setSuccess(`Leave ${actionType}d successfully`);
       fetchLeaveData();
@@ -188,6 +172,13 @@ const LeaveApplication = () => {
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">Leave Management</h1>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 flex items-center gap-3">
+          <AlertTriangle size={20} />
+          <p>{error}</p>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden mb-8">
@@ -243,189 +234,194 @@ const LeaveApplication = () => {
               </div>
             )}
 
-            <div className="bg-white rounded-xl shadow border overflow-hidden">
-              {/* Leave Entitlement Policy */}
-              <div className="p-6 border-b">
-                <h2 className="text-xl font-semibold mb-6">Leave Entitlement Policy</h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-5">
-                    <div>
-                      <h3 className="font-medium text-gray-800">Annual Leave</h3>
-                      <p className="text-gray-600">
-                        23 days every year – accrues at 1.36 days per month
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        All annual leave is deducted from this entitlement.
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="font-medium text-gray-800">Sick Leave</h3>
-                      <p className="text-gray-600">
-                        30 days over a 36-month cycle
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="font-medium text-gray-800">Compassionate Leave</h3>
-                      <p className="text-gray-600">
-                        • Parent, sibling, child, spouse/life partner: <strong>5 days</strong><br />
-                        • Uncle, aunt, grandparents, nephew, niece: <strong>3 days</strong>
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="font-medium text-gray-800">Paternity Leave</h3>
-                      <p className="text-gray-600">3 days</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-5">
-                    <div>
-                      <h3 className="font-medium text-gray-800">Family Responsibility Leave</h3>
-                      <p className="text-gray-600">
-                        3 days per year (does not accrue)
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="font-medium text-gray-800">Unpaid Leave</h3>
-                      <p className="text-gray-600">
-                        0 days – granted only when other leave is exhausted
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="font-medium text-gray-800">Study Leave</h3>
-                      <p className="text-gray-600">
-                        10 days per year (does not accrue)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-800">
-                    <strong>Note:</strong> Leave balances are tracked separately per type where applicable. Annual leave accrues monthly and is the primary paid leave type.
-                  </p>
-                </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="animate-spin mr-3" size={24} />
+                Loading leave information...
               </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow border overflow-hidden">
+                {/* Leave Entitlement Policy */}
+                <div className="p-6 border-b">
+                  <h2 className="text-xl font-semibold mb-6">Leave Entitlement Policy</h2>
 
-              {/* Current Balances */}
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Your Current Leave Balances</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div className="bg-gray-50 p-5 rounded-xl border">
-                    <p className="font-medium text-gray-700">Annual Leave</p>
-                    <p className="text-2xl font-bold text-custom-orange mt-2">
-                      {leaveBalances.annual ?? '—'} days
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">Accrues at 1.36 days/month</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="font-medium text-gray-800">Annual Leave</h3>
+                        <p className="text-gray-600">
+                          23 days every year – accrues at 1.36 days per month
+                        </p>
+                        <p className="text-sm text-gray-500 mt-1">
+                          All annual leave is deducted from this entitlement.
+                        </p>
+                      </div>
+
+                      <div>
+                        <h3 className="font-medium text-gray-800">Sick Leave</h3>
+                        <p className="text-gray-600">
+                          30 days over a 36-month cycle
+                        </p>
+                      </div>
+
+                      <div>
+                        <h3 className="font-medium text-gray-800">Compassionate Leave</h3>
+                        <p className="text-gray-600">
+                          • Parent, sibling, child, spouse/life partner: <strong>5 days</strong><br />
+                          • Uncle, aunt, grandparents, nephew, niece: <strong>3 days</strong>
+                        </p>
+                      </div>
+
+                      <div>
+                        <h3 className="font-medium text-gray-800">Paternity Leave</h3>
+                        <p className="text-gray-600">3 days</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="font-medium text-gray-800">Family Responsibility Leave</h3>
+                        <p className="text-gray-600">
+                          3 days per year (does not accrue)
+                        </p>
+                      </div>
+
+                      <div>
+                        <h3 className="font-medium text-gray-800">Unpaid Leave</h3>
+                        <p className="text-gray-600">
+                          0 days – granted only when other leave is exhausted
+                        </p>
+                      </div>
+
+                      <div>
+                        <h3 className="font-medium text-gray-800">Study Leave</h3>
+                        <p className="text-gray-600">
+                          10 days per year (does not accrue)
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="bg-gray-50 p-5 rounded-xl border">
-                    <p className="font-medium text-gray-700">Sick Leave</p>
-                    <p className="text-2xl font-bold text-custom-orange mt-2">
-                      {leaveBalances.sick ?? '—'} days
+                  <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-800">
+                      <strong>Note:</strong> Leave balances are tracked separately per type where applicable. Annual leave accrues monthly and is the primary paid leave type.
                     </p>
-                    <p className="text-sm text-gray-500 mt-1">36-month cycle</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-5 rounded-xl border">
-                    <p className="font-medium text-gray-700">Family Responsibility</p>
-                    <p className="text-2xl font-bold text-custom-orange mt-2">
-                      {leaveBalances.familyResponsibility ?? '—'} days
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">Per year, no accrual</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-5 rounded-xl border">
-                    <p className="font-medium text-gray-700">Study Leave</p>
-                    <p className="text-2xl font-bold text-custom-orange mt-2">
-                      {leaveBalances.study ?? '—'} days
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">Per year, no accrual</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-5 rounded-xl border">
-                    <p className="font-medium text-gray-700">Paternity Leave</p>
-                    <p className="text-2xl font-bold text-custom-orange mt-2">
-                      {leaveBalances.paternity ?? '3'} days
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 p-5 rounded-xl border">
-                    <p className="font-medium text-gray-700">Compassionate Leave</p>
-                    <p className="text-2xl font-bold text-custom-orange mt-2">
-                      {leaveBalances.compassionate ?? '—'} days
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      5 days (immediate family) / 3 days (extended family)
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 p-5 rounded-xl border">
-                    <p className="font-medium text-gray-700">Unpaid Leave</p>
-                    <p className="text-2xl font-bold text-custom-orange mt-2">
-                      {leaveBalances.unpaid ?? '0'} days
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">Only when other leave exhausted</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Recent Applications */}
-              <div className="p-6 border-t">
-                <h3 className="text-lg font-semibold mb-4">Recent Leave Applications</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Applicant</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Start Date</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">End Date</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Days</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Type</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Applied On</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {recentLeaves.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="text-center py-10 text-gray-500">
-                            No recent leave applications
-                          </td>
-                        </tr>
-                      ) : (
-                        recentLeaves.map((leave) => (
-                          <tr key={leave.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4">{leave.applicant_name || '—'}</td>
-                            <td className="px-6 py-4">{new Date(leave.start_date).toLocaleDateString()}</td>
-                            <td className="px-6 py-4">{new Date(leave.end_date).toLocaleDateString()}</td>
-                            <td className="px-6 py-4 font-medium">{leave.days_applied}</td>
-                            <td className="px-6 py-4">{leave.type}</td>
-                            <td className="px-6 py-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                leave.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                leave.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-500">
-                              {new Date(leave.application_date).toLocaleDateString()}
-                            </td>
+                {/* Current Balances */}
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold mb-4">Your Current Leave Balances</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <p className="font-medium text-gray-700">Annual Leave</p>
+                      <p className="text-2xl font-bold text-custom-orange mt-2">
+                        {leaveBalances.annual ?? '—'} days
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">Accrues at 1.36 days/month</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <p className="font-medium text-gray-700">Sick Leave</p>
+                      <p className="text-2xl font-bold text-custom-orange mt-2">
+                        {leaveBalances.sick ?? '—'} days
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">36-month cycle</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <p className="font-medium text-gray-700">Family Responsibility</p>
+                      <p className="text-2xl font-bold text-custom-orange mt-2">
+                        {leaveBalances.familyResponsibility ?? '—'} days
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">Per year, no accrual</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <p className="font-medium text-gray-700">Study Leave</p>
+                      <p className="text-2xl font-bold text-custom-orange mt-2">
+                        {leaveBalances.study ?? '—'} days
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">Per year, no accrual</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <p className="font-medium text-gray-700">Paternity Leave</p>
+                      <p className="text-2xl font-bold text-custom-orange mt-2">
+                        {leaveBalances.paternity ?? '3'} days
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <p className="font-medium text-gray-700">Compassionate Leave</p>
+                      <p className="text-2xl font-bold text-custom-orange mt-2">
+                        {leaveBalances.compassionate ?? '—'} days
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        5 days (immediate family) / 3 days (extended family)
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-5 rounded-xl border">
+                      <p className="font-medium text-gray-700">Unpaid Leave</p>
+                      <p className="text-2xl font-bold text-custom-orange mt-2">
+                        {leaveBalances.unpaid ?? '0'} days
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">Only when other leave exhausted</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Applications */}
+                <div className="p-6 border-t">
+                  <h3 className="text-lg font-semibold mb-4">Recent Leave Applications</h3>
+                  {recentLeaves.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      No recent leave applications
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Applicant</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Start Date</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">End Date</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Days</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Type</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Applied On</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {recentLeaves.map((leave) => (
+                            <tr key={leave.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4">{leave.applicant_name || '—'}</td>
+                              <td className="px-6 py-4">{new Date(leave.start_date).toLocaleDateString()}</td>
+                              <td className="px-6 py-4">{new Date(leave.end_date).toLocaleDateString()}</td>
+                              <td className="px-6 py-4 font-medium">{leave.days_applied}</td>
+                              <td className="px-6 py-4">{leave.type}</td>
+                              <td className="px-6 py-4">
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  leave.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                  leave.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-500">
+                                {new Date(leave.application_date).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -530,7 +526,7 @@ const LeaveApplication = () => {
               </h2>
 
               {loading ? (
-                <div className="flex items-center justify-center py-10">
+                <div className="flex items-center justify-center py-12">
                   <Loader2 className="animate-spin mr-3" size={24} />
                   Loading...
                 </div>

@@ -667,8 +667,21 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
   }
 
   try {
+    // First check if timesheet exists and is pending
+    const [tsRows] = await db.promise().query(
+      'SELECT user_id FROM timesheets WHERE id = ? AND status = "pending"',
+      [id]
+    );
+
+    if (tsRows.length === 0) {
+      return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    }
+
+    const employeeId = tsRows[0].user_id;
+
+    // Update timesheet
     await db.promise().query(
-      'UPDATE timesheets SET status = "approved", approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ? AND status = "pending"',
+      'UPDATE timesheets SET status = "approved", approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
       [approver_id, reviewNote, id]
     );
 
@@ -679,20 +692,8 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
       );
     }
 
-    const [rows] = await db.promise().query(
-      `SELECT t.*, CONCAT(u.first_name, ' ', u.last_name) AS employee_name
-       FROM timesheets t
-       JOIN users u ON t.user_id = u.id
-       WHERE t.id = ?`,
-      [id]
-    );
-
-    if (rows.length === 0) return res.status(404).json({ error: 'Timesheet not found' });
-
-    const ts = rows[0];
-    const employeeId = ts.user_id;
-
-    const employeeMessage = `Your timesheet for ${new Date(ts.date).toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;
+    // Notify employee
+    const employeeMessage = `Your timesheet for ${new Date().toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;
 
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
@@ -701,8 +702,8 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
 
     res.json({ message: 'Timesheet approved' });
   } catch (err) {
-    console.error('Approve error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Approve error:', err.message, err.stack); // better logging
+    res.status(500).json({ error: 'Failed to approve timesheet', details: err.message });
   }
 });
 
@@ -719,33 +720,57 @@ app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, re
   }
 
   try {
-    await db.promise().query(
-      'UPDATE timesheets SET status = "rejected", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ? AND status = "pending"',
-      [rejector_id, rejectNote, id]
-    );
-
-    const [rows] = await db.promise().query(
-      `SELECT t.*, CONCAT(u.first_name, ' ', u.last_name) AS employee_name
-       FROM timesheets t JOIN users u ON t.user_id = u.id WHERE t.id = ?`,
+    // 1. Check if timesheet exists and is still pending
+    const [checkRows] = await db.promise().query(
+      'SELECT user_id, date FROM timesheets WHERE id = ? AND status = "pending"',
       [id]
     );
 
-    if (rows.length === 0) return res.status(404).json({ error: 'Timesheet not found' });
+    if (checkRows.length === 0) {
+      return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    }
 
-    const ts = rows[0];
-    const employeeId = ts.user_id;
+    const employeeId = checkRows[0].user_id;
+    const timesheetDate = checkRows[0].date;
 
-    const employeeMessage = `Your timesheet for ${new Date(ts.date).toLocaleDateString()} has been REJECTED.\nReason: ${rejectNote}`;
+    // 2. Perform the rejection
+    const [updateResult] = await db.promise().query(
+      'UPDATE timesheets SET status = "rejected", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
+      [rejector_id, rejectNote, id]
+    );
+
+    if (updateResult.affectedRows === 0) {
+      return res.status(409).json({ error: 'Timesheet could not be rejected (already processed?)' });
+    }
+
+    // 3. Get employee name for message (optional but nice)
+    const [userRows] = await db.promise().query(
+      'SELECT CONCAT(first_name, " ", last_name) AS employee_name FROM users WHERE id = ?',
+      [employeeId]
+    );
+
+    const employeeName = userRows[0]?.employee_name || 'Employee';
+
+    // 4. Send notification
+    const employeeMessage = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been REJECTED.\nReason: ${rejectNote}`;
 
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
       [employeeId, 'Timesheet Rejected', employeeMessage, id]
     );
 
-    res.json({ message: 'Timesheet rejected' });
+    res.json({ message: 'Timesheet rejected successfully' });
   } catch (err) {
-    console.error('Reject error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Reject timesheet error:', {
+      message: err.message,
+      stack: err.stack,
+      sql: err.sql || 'N/A',
+      sqlMessage: err.sqlMessage || 'N/A'
+    });
+    res.status(500).json({ 
+      error: 'Failed to reject timesheet', 
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
   }
 });
 

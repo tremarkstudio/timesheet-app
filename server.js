@@ -18,8 +18,8 @@ const transporter = nodemailer.createTransport({
   secure: false,
   auth: {
     user: 'resend',
-    pass: 're_DG4ZdDSr_EGpqjFdSybaBS4DruCZsKbBp',  // your Resend API key
-  },
+    pass: process.env.RESEND_API_KEY
+  }
 });
 
 transporter.verify((error, success) => {
@@ -1044,30 +1044,42 @@ app.post('/leave', authenticate, upload.single('attachment'), async (req, res) =
 });
 
 // APPROVE LEAVE (admin)
+// APPROVE LEAVE (admin)
 app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) => {
   const { id } = req.params;
-  const { onBehalfOf } = req.body;
-  const approverId = onBehalfOf || req.user.id;
+  const { onBehalfOf } = req.body || {};
+  const approverId = onBehalfOf || req.user?.id;
+
+  if (!approverId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
 
   try {
-    const [leave] = await db.promise().query(
+    // 1. Check if leave exists and is pending
+    const [leaveRows] = await db.promise().query(
       'SELECT user_id, days_applied FROM leave_applications WHERE id = ? AND status = "pending"',
       [id]
     );
-    if (leave.length === 0) return res.status(404).json({ error: 'Leave not found or already processed' });
 
-    const { user_id, days_applied } = leave[0];
+    if (leaveRows.length === 0) {
+      return res.status(404).json({ error: 'Leave application not found or not pending' });
+    }
 
+    const { user_id, days_applied } = leaveRows[0];
+
+    // 2. Deduct leave balance
     await db.promise().query(
       'UPDATE users SET leave_balance = leave_balance - ? WHERE id = ?',
       [days_applied, user_id]
     );
 
+    // 3. Update leave status
     await db.promise().query(
       'UPDATE leave_applications SET status = "approved", approved_by = ?, approved_at = NOW() WHERE id = ?',
       [approverId, id]
     );
 
+    // 4. Notify admins
     const message = `Leave application by employee ${user_id} (${days_applied} days) has been APPROVED.`;
     const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
 
@@ -1080,10 +1092,15 @@ app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) =
       );
     }
 
-    res.json({ message: 'Leave approved' });
+    res.json({ message: 'Leave approved successfully' });
   } catch (err) {
-    console.error('Approve leave error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Leave approve error:', {
+      message: err.message,
+      stack: err.stack,
+      sql: err.sql || 'N/A',
+      sqlMessage: err.sqlMessage || 'N/A'
+    });
+    res.status(500).json({ error: 'Failed to approve leave application' });
   }
 });
 
@@ -1092,19 +1109,26 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
   const { id } = req.params;
 
   try {
-    await db.promise().query(
-      'UPDATE leave_applications SET status = "rejected", rejected_by = ?, rejected_at = NOW() WHERE id = ? AND status = "pending"',
-      [req.user.id, id]
-    );
-
-    const [leave] = await db.promise().query(
-      'SELECT user_id, days_applied FROM leave_applications WHERE id = ?',
+    // 1. Check if leave exists and is pending
+    const [leaveRows] = await db.promise().query(
+      'SELECT user_id, days_applied FROM leave_applications WHERE id = ? AND status = "pending"',
       [id]
     );
 
-    if (leave.length === 0) return res.status(404).json({ error: 'Leave not found' });
+    if (leaveRows.length === 0) {
+      return res.status(404).json({ error: 'Leave application not found or not pending' });
+    }
 
-    const message = `Leave application by employee ${leave[0].user_id} (${leave[0].days_applied} days) has been REJECTED.`;
+    const { user_id, days_applied } = leaveRows[0];
+
+    // 2. Update leave status
+    await db.promise().query(
+      'UPDATE leave_applications SET status = "rejected", rejected_by = ?, rejected_at = NOW() WHERE id = ?',
+      [req.user.id, id]
+    );
+
+    // 3. Notify admins
+    const message = `Leave application by employee ${user_id} (${days_applied} days) has been REJECTED.`;
     const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
 
     const notifyValues = admins.map(a => [a.id, 'Leave Rejected', message, id]);
@@ -1116,28 +1140,18 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
       );
     }
 
-    res.json({ message: 'Leave rejected' });
+    res.json({ message: 'Leave rejected successfully' });
   } catch (err) {
-    console.error('Reject leave error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Leave reject error:', {
+      message: err.message,
+      stack: err.stack,
+      sql: err.sql || 'N/A',
+      sqlMessage: err.sqlMessage || 'N/A'
+    });
+    res.status(500).json({ error: 'Failed to reject leave application' });
   }
 });
 
-app.get('/test-email', async (req, res) => {
-  try {
-    await transporter.sendMail({
-      from: `"Test" <${process.env.EMAIL_USER}>`,
-      to: 'your-personal-email@gmail.com',
-      subject: 'Test Email from JIMMAC',
-      text: 'This is a test email.',
-      html: '<h1>Test Email</h1><p>This is a test from your app.</p>',
-    });
-    res.send('Test email sent!');
-  } catch (err) {
-    console.error('Test email failed:', err);
-    res.status(500).send('Failed: ' + err.message);
-  }
-});
 
 
 

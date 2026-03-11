@@ -62,7 +62,7 @@ app.use(cors({
 }));
 
 // Handle preflight OPTIONS requests manually as fallback
-app.options('*', cors());
+//app.options('*', cors());
 
 // Parse JSON bodies
 app.use(express.json());

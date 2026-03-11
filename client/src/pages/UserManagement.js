@@ -41,7 +41,7 @@ const UserManagement = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await api.get('${process.env.REACT_APP_API_URL}/users', {
+      const res = await api.get('${${process.env.REACT_APP_API_URL}}/users', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(res.data || []);
@@ -56,7 +56,7 @@ const UserManagement = () => {
   const fetchAdmins = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await api.get('${process.env.REACT_APP_API_URL}/users', {
+      const res = await api.get('${${process.env.REACT_APP_API_URL}}/users', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setAdmins(res.data.filter(u => [1, 2].includes(u.role_id)) || []);
@@ -98,7 +98,7 @@ const UserManagement = () => {
     setSaving(true);
 
     const token = localStorage.getItem('token');
-    const url = editingUser ? `${process.env.REACT_APP_API_URL}/users/${editingUser.id}` : '${process.env.REACT_APP_API_URL}/users';
+    const url = editingUser ? `${${process.env.REACT_APP_API_URL}}/users/${editingUser.id}` : '${${process.env.REACT_APP_API_URL}}/users';
     const method = editingUser ? 'put' : 'post';
 
     // Prepare payload - exclude password on edit
@@ -149,7 +149,7 @@ const UserManagement = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await api.delete(`${process.env.REACT_APP_API_URL}/users/${id}`, {
+      await api.delete(`${${process.env.REACT_APP_API_URL}}/users/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSuccess('User deleted successfully');

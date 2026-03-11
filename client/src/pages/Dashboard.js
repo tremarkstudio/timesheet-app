@@ -69,13 +69,13 @@ const Dashboard = () => {
       setLoading(true);
       try {
         // Stats
-        const statsRes = await api.get('${process.env.REACT_APP_API_URL}/dashboard-data', {
+        const statsRes = await api.get('${${process.env.REACT_APP_API_URL}}/dashboard-data', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setData(statsRes.data || { totalProduction: 0, timeValue: 0, funds: 0 });
 
         // Timesheets
-        const tsRes = await api.get('${process.env.REACT_APP_API_URL}/timesheets', {
+        const tsRes = await api.get('${${process.env.REACT_APP_API_URL}}/timesheets', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tsData = tsRes.data || [];
@@ -84,7 +84,7 @@ const Dashboard = () => {
         // User mapping
         const userIds = new Set(tsData.map(ts => ts.user_id).filter(Boolean));
         if (userIds.size > 0) {
-          const usersRes = await api.get('${process.env.REACT_APP_API_URL}/users', {
+          const usersRes = await api.get('${${process.env.REACT_APP_API_URL}}/users', {
             headers: { Authorization: `Bearer ${token}` },
           });
           const users = usersRes.data || [];
@@ -97,7 +97,7 @@ const Dashboard = () => {
 
         // Notifications (admin only)
         if (isAdmin) {
-          const notifRes = await api.get('${process.env.REACT_APP_API_URL}/notifications', {
+          const notifRes = await api.get('${${process.env.REACT_APP_API_URL}}/notifications', {
             headers: { Authorization: `Bearer ${token}` },
           });
           const notifs = notifRes.data || [];
@@ -106,14 +106,14 @@ const Dashboard = () => {
         }
 
         // User data & leave info
-        const userRes = await api.get('${process.env.REACT_APP_API_URL}/users/me', {
+        const userRes = await api.get('${${process.env.REACT_APP_API_URL}}/users/me', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setUser(userRes.data);
         setLeaveBalance(userRes.data.leave_balance || 20);
 
         // Recent leave applications
-        const leaveRes = await api.get('${process.env.REACT_APP_API_URL}/leave', {
+        const leaveRes = await api.get('${${process.env.REACT_APP_API_URL}}/leave', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setRecentLeaves(leaveRes.data.recent || []);

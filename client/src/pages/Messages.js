@@ -43,7 +43,7 @@ const Messages = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found');
-      const res = await api.get('${process.env.REACT_APP_API_URL}/notifications', {
+      const res = await api.get('${${process.env.REACT_APP_API_URL}}/notifications', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications(res.data || []);
@@ -56,7 +56,7 @@ const Messages = () => {
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await api.get('${process.env.REACT_APP_API_URL}/users', {
+      const res = await api.get('${${process.env.REACT_APP_API_URL}}/users', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setEmployees(res.data.filter(u => u.role_id === 3) || []);
@@ -73,13 +73,13 @@ const Messages = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found');
 
-      const userRes = await api.get('${process.env.REACT_APP_API_URL}/users/me', {
+      const userRes = await api.get('${${process.env.REACT_APP_API_URL}}/users/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const managerId = userRes.data.manager_id;
 
       if (managerId) {
-        const managerRes = await api.get(`${process.env.REACT_APP_API_URL}/users/${managerId}`, {
+        const managerRes = await api.get(`${${process.env.REACT_APP_API_URL}}/users/${managerId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setManager(managerRes.data);
@@ -103,7 +103,7 @@ const Messages = () => {
     setChatLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await api.get(`${process.env.REACT_APP_API_URL}/messages/user/${userId}`, {
+      const res = await api.get(`${${process.env.REACT_APP_API_URL}}/messages/user/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setChatMessages(res.data || []);
@@ -120,7 +120,7 @@ const Messages = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await api.post('${process.env.REACT_APP_API_URL}/messages', {
+      await api.post('${${process.env.REACT_APP_API_URL}}/messages', {
         content: messageText.trim(),
         recipientId: selectedUserId,
       }, {

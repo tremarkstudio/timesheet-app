@@ -56,6 +56,7 @@ app.use((req, res, next) => {
 });
 
 // MySQL Connection (Aiven)
+// MySQL Connection (Aiven)
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -70,9 +71,11 @@ const db = mysql.createConnection({
 db.connect(err => {
   if (err) {
     console.error('MySQL connection failed:', err.message);
-    //process.exit(1);
+    console.log('⚠️ Server is running WITHOUT database connection.');
+    // DO NOT call process.exit(1) - let the server stay alive
+  } else {
+    console.log('MySQL connected successfully');
   }
-  console.log('MySQL connected successfully');
 });
 
 // Auth middleware (improved)

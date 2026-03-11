@@ -13,16 +13,13 @@ const app = express();
 
 // Gmail transporter
 const transporter = nodemailer.createTransport({
-  host: 'mail.jimmac.co.za',           // ← confirm this in cPanel → Email Accounts → Connect Devices
-  port: 587,                           // 587 for TLS, 465 for SSL
-  secure: false,                       // false for 587 (STARTTLS), true for 465
+  host: 'smtp.resend.com',
+  port: 587,
+  secure: false,
   auth: {
-    user: 'noreply@jimmac.co.za',      // your full email address
-    pass: process.env.EMAIL_PASS       // email account password
+    user: 'resend',
+    pass: 're_DG4ZdDSr_EGpqjFdSybaBS4DruCZsKbBp',  // your Resend API key
   },
-  tls: {
-    rejectUnauthorized: false          // helpful if self-signed cert
-  }
 });
 
 transporter.verify((error, success) => {
@@ -915,7 +912,7 @@ app.post('/send-welcome-email', async (req, res) => {
     `;
 
     await transporter.sendMail({
-      from: `"JIMMAC System" <${process.env.EMAIL_USER}>`,
+      from: `"JIMMAC Work Management System" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Welcome to Jimmac Timesheet - Your Account Details',
       text,

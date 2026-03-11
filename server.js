@@ -127,6 +127,11 @@ app.get('/dashboard-data', authenticate, async (req, res) => {
 
   const userId = req.user.id;
   const role_id = req.user.role_id;
+
+  if (!userId || !role_id) {
+    return res.status(401).json({ error: 'Invalid user data' });
+  }
+
   let query = '';
   let params = [];
 
@@ -139,19 +144,19 @@ app.get('/dashboard-data', authenticate, async (req, res) => {
 
   try {
     const [results] = await db.promise().query(query, params);
-    const { total_hours = 0 } = results[0] || {};
-    const time_value = total_hours * 50; // your rate logic
+    const total_hours = results[0]?.total_hours || 0; // safe access
+    const time_value = total_hours * 50;
+
     res.json({
       total_production: total_hours,
-      time_value: time_value,
+      time_value,
       funds: role_id === 3 ? time_value : time_value
     });
   } catch (err) {
-    console.error('Dashboard data error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Dashboard data error:', err.message, err.stack);
+    res.status(500).json({ error: 'Server error fetching dashboard data' });
   }
 });
-
 // ────────────────────────────────────────────────
 // NOTIFICATIONS
 // ────────────────────────────────────────────────

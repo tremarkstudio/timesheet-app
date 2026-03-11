@@ -35,7 +35,7 @@ const Login = () => {
         {/* Logo / Brand */}
         <div className="flex flex-col items-center mb-8">
           <img
-            src="/logo.png" // ← Replace with your actual logo path (e.g. public/logo.png)
+            src="/jimmac-logo.png" // ← Replace with your actual logo path (e.g. public/logo.png)
             alt="Jimmac Timesheet Logo"
             className="h-16 w-auto mb-3 object-contain"
             onError={(e) => {

@@ -40,7 +40,7 @@ const upload = multer({ storage });
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://timesheet-frontend-abc123.onrender.com',   // ← CHANGE TO YOUR ACTUAL FRONTEND URL
+    'https://timesheet-app-fontend.onrender.com',   // ← CHANGE TO YOUR ACTUAL FRONTEND URL
     'https://app.jimmac.co.za'
   ],
   credentials: true,
@@ -70,9 +70,11 @@ const db = mysql.createConnection({
 db.connect(err => {
   if (err) {
     console.error('MySQL connection failed:', err.message);
-    process.exit(1);
+    console.log('⚠️ Server is running WITHOUT database connection for now.');
+    // process.exit(1);   ← COMMENTED OUT so it doesn't crash
+  } else {
+    console.log('MySQL connected successfully');
   }
-  console.log('MySQL connected successfully');
 });
 
 // Auth middleware (improved)
@@ -1017,7 +1019,10 @@ app.get('/test-email', async (req, res) => {
     res.status(500).send('Failed: ' + err.message);
   }
 });
-const PORT = process.env.PORT || 5000;  // Render uses process.env.PORT
+
+
+// ==================== SERVER START ====================
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);

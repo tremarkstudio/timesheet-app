@@ -1,7 +1,9 @@
+// client/src/api/axios.js
 import axios from 'axios';
 
-const api = api.create({
+const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+  timeout: 10000, // optional – prevents hanging forever
 });
 
 export default api;

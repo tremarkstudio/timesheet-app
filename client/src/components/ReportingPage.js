@@ -25,7 +25,7 @@ const ReportingPage = () => {
         const token = localStorage.getItem('token');
 
         // Fetch users
-        const usersRes = await api.get('${`${process.env.REACT_APP_API_URL}`}/users', {
+        const usersRes = await api.get('${process.env.REACT_APP_API_URL}/users', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const users = usersRes.data || [];
@@ -37,7 +37,7 @@ const ReportingPage = () => {
         setEmployees(users.filter(u => u.role_id === 3));
 
         // Fetch timesheets
-        const tsRes = await api.get('${`${process.env.REACT_APP_API_URL}`}/timesheets', {
+        const tsRes = await api.get('${process.env.REACT_APP_API_URL}/timesheets', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setTimesheets(tsRes.data || []);

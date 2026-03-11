@@ -1044,7 +1044,7 @@ app.post('/leave', authenticate, upload.single('attachment'), async (req, res) =
 });
 
 // APPROVE LEAVE (admin)
-// APPROVE LEAVE (admin)
+// APPROVE LEAVE
 app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) => {
   const { id } = req.params;
   const { onBehalfOf } = req.body || {};
@@ -1055,9 +1055,9 @@ app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) =
   }
 
   try {
-    // 1. Check if leave exists and is pending
+    // Check existence and pending status (single quotes!)
     const [leaveRows] = await db.promise().query(
-      'SELECT user_id, days_applied FROM leave_applications WHERE id = ? AND status = "pending"',
+      "SELECT user_id, days_applied FROM leave_applications WHERE id = ? AND status = 'pending'",
       [id]
     );
 
@@ -1067,19 +1067,19 @@ app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) =
 
     const { user_id, days_applied } = leaveRows[0];
 
-    // 2. Deduct leave balance
+    // Deduct balance
     await db.promise().query(
       'UPDATE users SET leave_balance = leave_balance - ? WHERE id = ?',
       [days_applied, user_id]
     );
 
-    // 3. Update leave status
+    // Update status (single quotes!)
     await db.promise().query(
-      'UPDATE leave_applications SET status = "approved", approved_by = ?, approved_at = NOW() WHERE id = ?',
+      "UPDATE leave_applications SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?",
       [approverId, id]
     );
 
-    // 4. Notify admins
+    // Notify admins
     const message = `Leave application by employee ${user_id} (${days_applied} days) has been APPROVED.`;
     const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
 
@@ -1100,18 +1100,18 @@ app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) =
       sql: err.sql || 'N/A',
       sqlMessage: err.sqlMessage || 'N/A'
     });
-    res.status(500).json({ error: 'Failed to approve leave application' });
+    res.status(500).json({ error: 'Failed to approve leave' });
   }
 });
 
-// REJECT LEAVE (admin)
+// REJECT LEAVE
 app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) => {
   const { id } = req.params;
 
   try {
-    // 1. Check if leave exists and is pending
+    // Check existence and pending status (single quotes!)
     const [leaveRows] = await db.promise().query(
-      'SELECT user_id, days_applied FROM leave_applications WHERE id = ? AND status = "pending"',
+      "SELECT user_id, days_applied FROM leave_applications WHERE id = ? AND status = 'pending'",
       [id]
     );
 
@@ -1121,13 +1121,13 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
 
     const { user_id, days_applied } = leaveRows[0];
 
-    // 2. Update leave status
+    // Update status (single quotes!)
     await db.promise().query(
-      'UPDATE leave_applications SET status = "rejected", rejected_by = ?, rejected_at = NOW() WHERE id = ?',
+      "UPDATE leave_applications SET status = 'rejected', rejected_by = ?, rejected_at = NOW() WHERE id = ?",
       [req.user.id, id]
     );
 
-    // 3. Notify admins
+    // Notify admins
     const message = `Leave application by employee ${user_id} (${days_applied} days) has been REJECTED.`;
     const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
 
@@ -1148,7 +1148,7 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
       sql: err.sql || 'N/A',
       sqlMessage: err.sqlMessage || 'N/A'
     });
-    res.status(500).json({ error: 'Failed to reject leave application' });
+    res.status(500).json({ error: 'Failed to reject leave' });
   }
 });
 

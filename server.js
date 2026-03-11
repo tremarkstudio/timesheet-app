@@ -154,7 +154,7 @@ app.get('/dashboard-data', authenticate, async (req, res) => {
   let params = [];
 
   if (role_id === 3) {
-    query = 'SELECT SUM(total_hours) AS total_hours FROM timesheets WHERE user_id = ? AND status = "approved"';
+    query = 'SELECT SUM(total_hours) AS total_hours FROM timesheets WHERE status = "approved"';
     params = [userId];
   } else {
     query = 'SELECT SUM(total_hours) AS total_hours FROM timesheets WHERE status = "approved"';
@@ -798,7 +798,7 @@ app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, re
     const timesheetDate = tsRows[0].date;
 
     await db.promise().query(
-      'UPDATE timesheets SET status = "rejected", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
+      'UPDATE timesheets SET status = "disapproved", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
       [rejector_id, rejectNote, id]
     );
 

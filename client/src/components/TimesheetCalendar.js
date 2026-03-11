@@ -45,8 +45,8 @@ const TimesheetCalendar = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    axios
-      .get('${${process.env.REACT_APP_API_URL}}/timesheets', {
+    api
+      .get('${process.env.REACT_APP_API_URL}/timesheets', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {

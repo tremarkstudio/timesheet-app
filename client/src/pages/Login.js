@@ -35,15 +35,14 @@ const Login = () => {
         {/* Logo / Brand */}
         <div className="flex flex-col items-center mb-8">
           <img
-            src="/jimmac-logo.png" // ← Replace with your actual logo path (e.g. public/logo.png)
+            src="https://picsum.photos/id/1015/150/60"
             alt="Jimmac Timesheet Logo"
             className="h-16 w-auto mb-3 object-contain"
             onError={(e) => {
               e.target.src = 'https://via.placeholder.com/150x60?text=Jimmac'; // fallback
             }}
           />
-          <h1 className="text-3xl font-bold text-gray-900">Jimmac Timesheet</h1>
-          <p className="text-sm text-gray-500 mt-1">Employee Time & Leave Management</p>
+          <h1 className="text-3xl font-bold text-gray-900">Management App</h1>
         </div>
 
         {/* Error Message */}

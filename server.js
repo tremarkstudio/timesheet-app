@@ -867,6 +867,62 @@ app.post('/messages', authenticate, (req, res) => {
   }
 });
 
+
+
+// WELCOME EMAIL 
+app.post('/send-welcome-email', async (req, res) => {
+  const { email, username, password, name } = req.body;
+
+  if (!email || !username || !password) {
+    return res.status(400).json({ error: 'Missing email, username, or password' });
+  }
+
+  try {
+    const loginLink = 'https://system.jimmac.co.za/login';
+
+    const text = `
+      Welcome to Jimmac Timesheet, ${name || 'Team Member'}!
+
+      Your account has been created. Here are your login details:
+
+      Username: ${username}
+      Password: ${password}
+
+      Login here: ${loginLink}
+
+      Please change your password after first login for security.
+
+      Best regards,
+      Jimmac Team
+    `;
+
+    const html = `
+      <h2 style="color: #f97316;">Welcome to Jimmac Timesheet!</h2>
+      <p>Hi ${name || 'Team Member'},</p>
+      <p>Your account has been successfully created. Here are your login credentials:</p>
+      <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p><strong>Username:</strong> ${username}</p>
+        <p><strong>Password:</strong> ${password}</p>
+      </div>
+      <p>Login here: <a href="${loginLink}" style="color: #f97316; font-weight: bold;">${loginLink}</a></p>
+      <p><small>Please change your password after your first login for security.</small></p>
+      <p>Best regards,<br/>Jimmac Team</p>
+    `;
+
+    await transporter.sendMail({
+      from: `"JIMMAC System" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Welcome to Jimmac Timesheet - Your Account Details',
+      text,
+      html,
+    });
+
+    res.json({ message: 'Welcome email sent' });
+  } catch (err) {
+    console.error('Welcome email error:', err);
+    res.status(500).json({ error: 'Failed to send welcome email' });
+  }
+});
 // ────────────────────────────────────────────────
 // LEAVE ROUTES
 // ────────────────────────────────────────────────
@@ -1081,6 +1137,111 @@ app.get('/test-email', async (req, res) => {
   }
 });
 
+
+
+
+
+// REQUEST PASSWORD RESET (sends email with reset token)
+app.post('/request-password-reset', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    // Find user by email
+    const [users] = await db.promise().query(
+      'SELECT id, username FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (users.length === 0) {
+      // Don't reveal if email exists (security)
+      return res.json({ message: 'If the email exists, a reset link has been sent.' });
+    }
+
+    const user = users[0];
+
+    // Generate short-lived reset token (expires in 1 hour)
+    const resetToken = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // Save token to DB (add reset_token & reset_expires columns if not present)
+    await db.promise().query(
+      'UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?',
+      [resetToken, user.id]
+    );
+
+    // Send email
+    const resetUrl = `https://system.jimmac.co.za/reset-password?token=${resetToken}`;
+    const mailOptions = {
+      from: `"JIMMAC System" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Password Reset Request',
+      text: `Click this link to reset your password: ${resetUrl}\nLink expires in 1 hour.`,
+      html: `
+        <h2>Reset Your Password</h2>
+        <p>Click the button below to reset your password:</p>
+        <a href="${resetUrl}" style="background:#f97316; color:white; padding:12px 24px; text-decoration:none; border-radius:6px; display:inline-block;">
+          Reset Password
+        </a>
+        <p>If you didn't request this, ignore this email.</p>
+        <p>Link expires in 1 hour.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({ message: 'If the email exists, a reset link has been sent.' });
+  } catch (err) {
+    console.error('Password reset request error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// RESET PASSWORD (new password with token)
+app.post('/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    // Check if token is still valid in DB
+    const [rows] = await db.promise().query(
+      'SELECT reset_expires FROM users WHERE id = ? AND reset_token = ?',
+      [userId, token]
+    );
+
+    if (rows.length === 0 || new Date(rows[0].reset_expires) < new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear token
+    await db.promise().query(
+      'UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?',
+      [hashedPassword, userId]
+    );
+
+    res.json({ message: 'Password reset successfully. Please login.' });
+  } catch (err) {
+    console.error('Password reset error:', err);
+    res.status(400).json({ error: 'Invalid or expired token' });
+  }
+});
+
+
+
+
+
 // ==================== SERVER START ====================
 const PORT = process.env.PORT || 5000;
 
@@ -1089,57 +1250,3 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 
-// WELCOME EMAIL 
-app.post('/send-welcome-email', async (req, res) => {
-  const { email, username, password, name } = req.body;
-
-  if (!email || !username || !password) {
-    return res.status(400).json({ error: 'Missing email, username, or password' });
-  }
-
-  try {
-    const loginLink = 'https://system.jimmac.co.za/login';
-
-    const text = `
-      Welcome to Jimmac Timesheet, ${name || 'Team Member'}!
-
-      Your account has been created. Here are your login details:
-
-      Username: ${username}
-      Password: ${password}
-
-      Login here: ${loginLink}
-
-      Please change your password after first login for security.
-
-      Best regards,
-      Jimmac Team
-    `;
-
-    const html = `
-      <h2 style="color: #f97316;">Welcome to Jimmac Timesheet!</h2>
-      <p>Hi ${name || 'Team Member'},</p>
-      <p>Your account has been successfully created. Here are your login credentials:</p>
-      <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p><strong>Username:</strong> ${username}</p>
-        <p><strong>Password:</strong> ${password}</p>
-      </div>
-      <p>Login here: <a href="${loginLink}" style="color: #f97316; font-weight: bold;">${loginLink}</a></p>
-      <p><small>Please change your password after your first login for security.</small></p>
-      <p>Best regards,<br/>Jimmac Team</p>
-    `;
-
-    await transporter.sendMail({
-      from: `"JIMMAC System" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Welcome to Jimmac Timesheet - Your Account Details',
-      text,
-      html,
-    });
-
-    res.json({ message: 'Welcome email sent' });
-  } catch (err) {
-    console.error('Welcome email error:', err);
-    res.status(500).json({ error: 'Failed to send welcome email' });
-  }
-});

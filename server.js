@@ -38,13 +38,12 @@ const upload = multer({ storage });
 
 // ==================== MIDDLEWARE ====================
 
-// CORS - allow your production frontend + local dev
 const allowedOrigins = [
   'http://localhost:3000',
-  'http://localhost:5173', // Vite if you use it
-  'https://system.jimmac.co.za',        // your current production domain
-  'https://app.jimmac.co.za',           // if you use this too
-  'https://timesheet-app-fontend.onrender.com', // old preview (keep for now)
+  'http://localhost:5173',
+  'https://system.jimmac.co.za',
+  'https://app.jimmac.co.za',
+  'https://timesheet-app-fontend.onrender.com',
 ];
 
 app.use(cors({
@@ -61,22 +60,15 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Handle preflight OPTIONS requests manually as fallback
-//app.options('*', cors());
-
-// Parse JSON bodies
 app.use(express.json());
-
-// Serve static uploads
 app.use('/uploads', express.static('uploads'));
 
-// Request logger
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
-// MySQL Connection (Aiven)
+// MySQL Connection
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -89,7 +81,6 @@ const db = mysql.createConnection({
 db.connect(err => {
   if (err) {
     console.error('MySQL connection failed:', err.message);
-    console.log('⚠️ Server is running WITHOUT database connection for now.');
   } else {
     console.log('MySQL connected successfully');
   }
@@ -98,42 +89,29 @@ db.connect(err => {
 // Auth middleware
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No or invalid authorization header' });
   }
 
   const token = authHeader.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) {
-      console.error('JWT verification failed:', err.message);
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
+    if (err) return res.status(401).json({ error: 'Invalid or expired token' });
     req.user = decoded;
     next();
   });
 };
 
-// Role middleware
 const restrictTo = (...roles) => (req, res, next) => {
   if (!req.user || !roles.includes(req.user.role_id)) {
-    return res.status(403).json({ error: 'Access denied - insufficient role' });
+    return res.status(403).json({ error: 'Access denied' });
   }
   next();
 };
 
-// ==================== TEST ROUTES ====================
-app.get('/', (req, res) => {
-  res.json({ message: 'JIMMAC Timesheet API is live! 🚀' });
-});
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend is healthy' });
-});
+
+
+
 
 // ────────────────────────────────────────────────
 // DASHBOARD DATA
@@ -148,10 +126,10 @@ app.get('/dashboard-data', authenticate, async (req, res) => {
   let params = [];
 
   if (role_id === 3) {
-    query = 'SELECT SUM(total_hours) AS total_hours FROM timesheets WHERE user_id = ? AND status = "approved"';
+    query = 'SELECT SUM(total_hours) AS total_hours FROM timesheets WHERE user_id = ? AND status = 1';
     params = [userId];
   } else {
-    query = 'SELECT SUM(total_hours) AS total_hours FROM timesheets WHERE status = "approved"';
+    query = 'SELECT SUM(total_hours) AS total_hours FROM timesheets WHERE status = 1';
   }
 
   try {
@@ -159,10 +137,14 @@ app.get('/dashboard-data', authenticate, async (req, res) => {
     const total_hours = results[0]?.total_hours || 0;
     const time_value = total_hours * 50;
 
-    res.json({ total_production: total_hours, time_value, funds: time_value });
+    res.json({
+      total_production: total_hours,
+      time_value,
+      funds: role_id === 3 ? time_value : time_value
+    });
   } catch (err) {
-    console.error('Dashboard data error:', err.message, err.stack);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Dashboard error:', err.message, err.stack);
+    res.status(500).json({ error: 'Failed to load dashboard data' });
   }
 });
 
@@ -654,6 +636,33 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
   }
 });
 
+//Delete users route
+app.delete('/users/:id', authenticate, restrictTo(1, 2), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Prevent deleting yourself
+    if (parseInt(id) === req.user.id) {
+      return res.status(403).json({ error: 'Cannot delete your own account' });
+    }
+
+    const [result] = await db.promise().query('DELETE FROM users WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Delete user error:', err.message, err.stack);
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(409).json({ error: 'Cannot delete user — they have associated records (timesheets, leaves, etc.)' });
+    }
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+
 // UPDATE TIMESHEET (employee edit)
 app.put('/timesheets/:id', authenticate, async (req, res) => {
   const { id } = req.params;
@@ -709,36 +718,38 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
   const approver_id = req.user?.id;
 
   if (!approver_id) return res.status(401).json({ error: 'Not authenticated' });
-  if (!reviewNote?.trim()) return res.status(400).json({ error: 'Review note is required' });
+  if (!reviewNote?.trim()) return res.status(400).json({ error: 'Review note required' });
 
   try {
-    const [tsRows] = await db.promise().query(
-      'SELECT user_id, date FROM timesheets WHERE id = ? AND status = "pending"',
+    const [ts] = await db.promise().query(
+      'SELECT user_id, date FROM timesheets WHERE id = ? AND status = 0',
       [id]
     );
 
-    if (tsRows.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    if (ts.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
 
-    const employeeId = tsRows[0].user_id;
-    const timesheetDate = tsRows[0].date;
+    const employeeId = ts[0].user_id;
+    const timesheetDate = ts[0].date;
 
     await db.promise().query(
-      'UPDATE timesheets SET status = "approved", approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
+      'UPDATE timesheets SET status = 1, approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
       [approver_id, reviewNote, id]
     );
 
     if (reviewedByManagerId) {
-      await db.promise().query('UPDATE timesheets SET reviewed_by_manager_id = ? WHERE id = ?', [reviewedByManagerId, id]);
+      await db.promise().query(
+        'UPDATE timesheets SET reviewed_by_manager_id = ? WHERE id = ?',
+        [reviewedByManagerId, id]
+      );
     }
 
-   
-    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;
+    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been approved.\nReview note: ${reviewNote}`;
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
       [employeeId, 'Timesheet Approved', message, id]
     );
 
-    res.json({ message: 'Timesheet approved successfully' });
+    res.json({ message: 'Timesheet approved' });
   } catch (err) {
     console.error('Approve error:', err.message, err.stack);
     res.status(500).json({ error: 'Failed to approve timesheet' });
@@ -753,32 +764,31 @@ app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, re
   const rejector_id = req.user?.id;
 
   if (!rejector_id) return res.status(401).json({ error: 'Not authenticated' });
-  if (!rejectNote?.trim()) return res.status(400).json({ error: 'Reject reason is required' });
+  if (!rejectNote?.trim()) return res.status(400).json({ error: 'Reject reason required' });
 
   try {
-    const [tsRows] = await db.promise().query(
-      'SELECT user_id, date FROM timesheets WHERE id = ? AND status = "pending"',
+    const [ts] = await db.promise().query(
+      'SELECT user_id, date FROM timesheets WHERE id = ? AND status = 0',
       [id]
     );
 
-    if (tsRows.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    if (ts.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
 
-    const employeeId = tsRows[0].user_id;
-    const timesheetDate = tsRows[0].date;
+    const employeeId = ts[0].user_id;
+    const timesheetDate = ts[0].date;
 
     await db.promise().query(
-      'UPDATE timesheets SET status = "disapproved", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
+      'UPDATE timesheets SET status = 2, rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
       [rejector_id, rejectNote, id]
     );
 
-    
-    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been REJECTED.\nReason: ${rejectNote}`;
+    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been disapproved.\nReason: ${rejectNote}`;
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
-      [employeeId, 'Timesheet Rejected', message, id]
+      [employeeId, 'Timesheet Disapproved', message, id]
     );
 
-    res.json({ message: 'Timesheet rejected successfully' });
+    res.json({ message: 'Timesheet rejected' });
   } catch (err) {
     console.error('Reject error:', err.message, err.stack);
     res.status(500).json({ error: 'Failed to reject timesheet' });
@@ -1079,7 +1089,7 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 
-// Add this route somewhere in server.js (after other routes)
+// WELCOME EMAIL 
 app.post('/send-welcome-email', async (req, res) => {
   const { email, username, password, name } = req.body;
 
@@ -1088,7 +1098,7 @@ app.post('/send-welcome-email', async (req, res) => {
   }
 
   try {
-    const loginLink = 'https://system.jimmac.co.za/login'; // your actual login URL
+    const loginLink = 'https://system.jimmac.co.za/login';
 
     const text = `
       Welcome to Jimmac Timesheet, ${name || 'Team Member'}!

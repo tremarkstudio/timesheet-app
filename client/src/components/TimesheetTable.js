@@ -59,7 +59,7 @@ const TimesheetTable = () => {
   const fetchManagers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await api.get('${process.env.REACT_APP_API_URL}/managers', {
+      const res = await api.get('/managers', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setManagers(res.data || []);
@@ -220,7 +220,7 @@ const TimesheetTable = () => {
     try {
       const token = localStorage.getItem('token');
       await api.put(
-        `${process.env.REACT_APP_API_URL}/timesheets/${selectedEntry.id}`,
+        `/timesheets/${selectedEntry.id}`,
         {
           tasks: selectedEntry.tasks,
           totalHours: totalHours.toFixed(2),
@@ -247,7 +247,7 @@ const TimesheetTable = () => {
     try {
       const token = localStorage.getItem('token');
       await api.put(
-        `${process.env.REACT_APP_API_URL}/timesheets/${selectedEntry.id}/approve`,
+        `/timesheets/${selectedEntry.id}/approve`,
         {
           reviewNote,
           reviewedByManagerId: onBehalfOfManager ? selectedManagerId : null,
@@ -273,7 +273,7 @@ const TimesheetTable = () => {
     try {
       const token = localStorage.getItem('token');
       await api.put(
-        `${process.env.REACT_APP_API_URL}/timesheets/${selectedEntry.id}/reject`,
+        `/timesheets/${selectedEntry.id}/reject`,
         { rejectNote },
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -42,19 +42,7 @@ async function sendBrevoEmail(to, subject, htmlContent) {
 
 const app = express();
 
-// Gmail transporter
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false,  // STARTTLS
-  auth: {
-    user: 'apikey',  // always 'apikey' for Brevo
-    pass: process.env.BREVO_SMTP_KEY
-  },
-  tls: {
-    rejectUnauthorized: false  // helpful for self-signed certs
-  }
-});
+
 
 // Verify on startup (optional but useful)
 transporter.verify((error, success) => {
@@ -776,6 +764,13 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
     const employeeId = tsRows[0].user_id;
     const timesheetDate = tsRows[0].date;
 
+    // Get employee email
+    const [empRows] = await db.promise().query(
+      "SELECT email FROM users WHERE id = ?",
+      [employeeId]
+    );
+    const employeeEmail = empRows[0]?.email;
+
     await db.promise().query(
       "UPDATE timesheets SET status = 'approved', approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?",
       [approver_id, reviewNote, id]
@@ -788,11 +783,25 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
       );
     }
 
+    // DB notification
     const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
       [employeeId, 'Timesheet Approved', message, id]
     );
+
+    // Email to employee
+    if (employeeEmail) {
+      const html = `
+        <h2>Your Timesheet Has Been Approved!</h2>
+        <p>Your timesheet for <strong>${new Date(timesheetDate).toLocaleDateString()}</strong> has been approved.</p>
+        <p><strong>Review note:</strong> ${reviewNote}</p>
+        <p>View details: <a href="https://system.jimmac.co.za/timesheets" style="color:#f97316;">View Timesheets</a></p>
+        <p>Best regards,<br>Jimmac Team</p>
+      `;
+
+      await sendBrevoEmail(employeeEmail, 'Timesheet Approved', html);
+    }
 
     res.json({ message: 'Timesheet approved successfully' });
   } catch (err) {
@@ -825,16 +834,37 @@ app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, re
     const employeeId = tsRows[0].user_id;
     const timesheetDate = tsRows[0].date;
 
+    // Get employee email
+    const [empRows] = await db.promise().query(
+      "SELECT email FROM users WHERE id = ?",
+      [employeeId]
+    );
+    const employeeEmail = empRows[0]?.email;
+
     await db.promise().query(
       "UPDATE timesheets SET status = 'disapproved', rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?",
       [rejector_id, rejectNote, id]
     );
 
+    // DB notification
     const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been REJECTED.\nReason: ${rejectNote}`;
     await db.promise().query(
       'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
       [employeeId, 'Timesheet Rejected', message, id]
     );
+
+    // Email to employee
+    if (employeeEmail) {
+      const html = `
+        <h2>Your Timesheet Has Been Rejected</h2>
+        <p>Your timesheet for <strong>${new Date(timesheetDate).toLocaleDateString()}</strong> was rejected.</p>
+        <p><strong>Reason:</strong> ${rejectNote}</p>
+        <p>Please review and resubmit if necessary: <a href="https://system.jimmac.co.za/timesheets" style="color:#f97316;">View Timesheets</a></p>
+        <p>Best regards,<br>Jimmac Team</p>
+      `;
+
+      await sendBrevoEmail(employeeEmail, 'Timesheet Rejected', html);
+    }
 
     res.json({ message: 'Timesheet rejected successfully' });
   } catch (err) {
@@ -917,57 +947,92 @@ app.post('/messages', authenticate, (req, res) => {
 
 
 
-// WELCOME EMAIL 
+// WELCOME EMAIL (with secure password reset link)
 app.post('/send-welcome-email', async (req, res) => {
-  const { email, username, password, name } = req.body;
+  const { email, username, name } = req.body;
 
-  if (!email || !username || !password) {
-    return res.status(400).json({ error: 'Missing email, username, or password' });
+  if (!email || !username) {
+    return res.status(400).json({ error: 'Email and username are required' });
   }
 
   try {
-    const loginLink = 'https://system.jimmac.co.za/login';
+    // 1. Find the new user by username/email
+    const [users] = await db.promise().query(
+      'SELECT id FROM users WHERE username = ? OR email = ?',
+      [username, email]
+    );
 
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userId = users[0].id;
+
+    // 2. Generate short-lived reset token (expires in 24 hours)
+    const resetToken = jwt.sign(
+      { userId },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // 3. Save token to DB
+    await db.promise().query(
+      'UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE id = ?',
+      [resetToken, userId]
+    );
+
+    // 4. Build secure reset link
+    const resetUrl = `https://system.jimmac.co.za/reset-password?token=${resetToken}`;
+
+    // 5. Email content
     const text = `
-      Welcome to Jimmac Timesheet, ${name || 'Team Member'}!
+Welcome to Jimmac Timesheet, ${name || 'Team Member'}!
 
-      Your account has been created. Here are your login details:
+Your account has been created successfully.
 
-      Username: ${username}
-      Password: ${password}
+Username: ${username}
 
-      Login here: ${loginLink}
+To set your password and activate your account, click this secure link:
+${resetUrl}
 
-      Please change your password after first login for security.
+The link expires in 24 hours.
 
-      Best regards,
-      Jimmac Team
+After setting your password, you can log in here: https://system.jimmac.co.za/login
+
+Best regards,
+Jimmac Team
     `;
 
     const html = `
       <h2 style="color: #f97316;">Welcome to Jimmac Timesheet!</h2>
       <p>Hi ${name || 'Team Member'},</p>
-      <p>Your account has been successfully created. Here are your login credentials:</p>
-      <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p><strong>Username:</strong> ${username}</p>
-        <p><strong>Password:</strong> ${password}</p>
-      </div>
-      <p>Login here: <a href="${loginLink}" style="color: #f97316; font-weight: bold;">${loginLink}</a></p>
-      <p><small>Please change your password after your first login for security.</small></p>
+      <p>Your account has been created successfully.</p>
+      <p><strong>Username:</strong> ${username}</p>
+      <p>To set your password and activate your account, click the button below:</p>
+      <a href="${resetUrl}" style="background:#f97316; color:white; padding:12px 24px; text-decoration:none; border-radius:6px; display:inline-block; margin:20px 0;">
+        Set Your Password
+      </a>
+      <p style="color:#666;">This link expires in 24 hours.</p>
+      <p>After setting your password, log in here: 
+        <a href="https://system.jimmac.co.za/login" style="color:#f97316;">Login</a>
+      </p>
+      <p><small>For security, never share your password.</small></p>
       <p>Best regards,<br/>Jimmac Team</p>
     `;
 
     await transporter.sendMail({
-      from: `"JIMMAC Work Management System" <${process.env.EMAIL_USER}>`,
+      from: `"JIMMAC Work Management System" <${process.env.EMAIL_FROM || 'noreply@jimmac.co.za'}>`,
       to: email,
-      subject: 'Welcome to Jimmac Timesheet - Your Account Details',
+      subject: 'Welcome to Jimmac Timesheet - Set Your Password',
       text,
       html,
     });
 
-    res.json({ message: 'Welcome email sent' });
+    console.log(`Welcome email with reset link sent to ${email} for user ${username}`);
+
+    res.json({ message: 'Welcome email with password setup link sent' });
   } catch (err) {
-    console.error('Welcome email error:', err);
+    console.error('Welcome email error:', err.message, err.stack);
     res.status(500).json({ error: 'Failed to send welcome email' });
   }
 });
@@ -1036,51 +1101,40 @@ app.post('/leave', authenticate, upload.single('attachment'), async (req, res) =
 
     const leaveId = result.insertId;
 
-    // Send email to admins (non-blocking)
-    try {
-      const [admins] = await db.promise().query(
-        'SELECT email, first_name FROM users WHERE role_id IN (1, 2) AND email IS NOT NULL'
-      );
+// Send email to admins (non-blocking)
+try {
+  const [admins] = await db.promise().query(
+    'SELECT email FROM users WHERE role_id IN (1, 2) AND email IS NOT NULL'
+  );
 
-      if (admins.length > 0) {
-        const employeeName = req.user.first_name && req.user.last_name 
-          ? `${req.user.first_name} ${req.user.last_name}` 
-          : req.user.username || 'An employee';
+  if (admins.length > 0) {
+    const employeeName = req.user.first_name && req.user.last_name 
+      ? `${req.user.first_name} ${req.user.last_name}` 
+      : req.user.username || 'An employee';
 
-        const subject = `New Leave Application Pending Review - ${employeeName}`;
-        const text = `A new leave request from ${employeeName} has been submitted.\n\n` +
-                     `Type: ${type}\n` +
-                     `Dates: ${new Date(startDate).toLocaleDateString('en-ZA')} - ${new Date(endDate).toLocaleDateString('en-ZA')}\n` +
-                     `Days: ${days}\n\n` +
-                     `Review it here: https://system.jimmac.co.za/leave?review=${leaveId}`;
+    const subject = `New Leave Application Pending Review - ${employeeName}`;
 
-        const html = `
-          <h2>New Leave Application Pending Review</h2>
-          <p>A new leave request from <strong>${employeeName}</strong> has been submitted.</p>
-          <ul>
-            <li><strong>Type:</strong> ${type}</li>
-            <li><strong>Dates:</strong> ${new Date(startDate).toLocaleDateString('en-ZA')} - ${new Date(endDate).toLocaleDateString('en-ZA')}</li>
-            <li><strong>Days:</strong> ${days}</li>
-          </ul>
-          <p><a href="https://system.jimmac.co.za/leave?review=${leaveId}" style="color:#f97316; font-weight:bold;">Review Leave Request</a></p>
-          <p style="color:#666; font-size:12px;">This is an automated notification from JIMMAC.</p>
-        `;
+    for (const admin of admins) {
+      const html = `
+        <h2>New Leave Application Pending Review</h2>
+        <p>A new leave request from <strong>${employeeName}</strong> has been submitted.</p>
+        <ul>
+          <li><strong>Type:</strong> ${type}</li>
+          <li><strong>Dates:</strong> ${new Date(startDate).toLocaleDateString('en-ZA')} - ${new Date(endDate).toLocaleDateString('en-ZA')}</li>
+          <li><strong>Days:</strong> ${days}</li>
+        </ul>
+        <p><a href="https://system.jimmac.co.za/leave?review=${leaveId}" style="color:#f97316; font-weight:bold;">Review Leave Request</a></p>
+        <p style="color:#666; font-size:12px;">This is an automated notification from JIMMAC.</p>
+      `;
 
-        for (const admin of admins) {
-          await transporter.sendMail({
-            from: `"JIMMAC System" <${process.env.EMAIL_USER}>`,
-            to: admin.email,
-            subject,
-            text,
-            html,
-          });
-        }
-
-        console.log(`Leave email notifications sent to ${admins.length} admins`);
-      }
-    } catch (emailErr) {
-      console.error('Leave email error (non-blocking):', emailErr);
+      await sendBrevoEmail(admin.email, subject, html);
     }
+
+    console.log(`Leave notification emails sent to ${admins.length} admins`);
+  }
+} catch (emailErr) {
+  console.error('Leave notification error (non-blocking):', emailErr);
+}
 
     res.status(201).json({ message: 'Leave application submitted', id: leaveId });
   } catch (err) {
@@ -1127,16 +1181,26 @@ app.put('/leave/:id/approve', authenticate, restrictTo(1, 2), async (req, res) =
 
     // Notify admins
     const message = `Leave application by employee ${user_id} (${days_applied} days) has been APPROVED.`;
-    const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
+const [admins] = await db.promise().query('SELECT email FROM users WHERE role_id IN (1, 2) AND email IS NOT NULL');
 
-    const notifyValues = admins.map(a => [a.id, 'Leave Approved', message, id]);
+for (const admin of admins) {
+  try {
+    const html = `
+      <h2>Leave Application Approved</h2>
+      <p>Employee ${user_id} had their leave request (${days_applied} days) approved.</p>
+      <p>Approved by: ${approverId}</p>
+      <p>View details: <a href="https://system.jimmac.co.za/leave?review=${id}" style="color:#f97316;">Review Leave</a></p>
+    `;
 
-    if (notifyValues.length > 0) {
-      await db.promise().query(
-        'INSERT INTO notifications (user_id, title, message, related_leave_id) VALUES ?',
-        [notifyValues]
-      );
-    }
+    await sendBrevoEmail(
+      admin.email,
+      'Leave Approved',
+      html
+    );
+  } catch (emailErr) {
+    console.error('Failed to notify admin:', emailErr);
+  }
+}
 
     res.json({ message: 'Leave approved successfully' });
   } catch (err) {
@@ -1175,7 +1239,24 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
 
     // Notify admins
     const message = `Leave application by employee ${user_id} (${days_applied} days) has been REJECTED.`;
-    const [admins] = await db.promise().query('SELECT id FROM users WHERE role_id IN (1, 2)');
+      const [admins] = await db.promise().query(
+        'SELECT email FROM users WHERE role_id IN (1, 2) AND email IS NOT NULL'
+      );
+
+      for (const admin of admins) {
+        try {
+          const html = `
+            <h2>Leave Application Rejected</h2>
+            <p>Employee ${user_id} had their leave request (${days_applied} days) rejected.</p>
+            <p>Rejected by: ${req.user.id}</p>
+            <p>View details: <a href="https://system.jimmac.co.za/leave?review=${id}" style="color:#f97316;">Review Leave</a></p>
+          `;
+
+          await sendBrevoEmail(admin.email, 'Leave Rejected', html);
+        } catch (emailErr) {
+          console.error('Failed to notify admin:', emailErr);
+        }
+      }
 
     const notifyValues = admins.map(a => [a.id, 'Leave Rejected', message, id]);
 

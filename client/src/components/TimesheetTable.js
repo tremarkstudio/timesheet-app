@@ -1,5 +1,6 @@
 // client/src/components/TimesheetTable.js
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { Eye, Edit, CheckCircle, Trash2, Plus, AlertTriangle, X } from 'lucide-react';
 import api from '../api/axios';
 
@@ -39,7 +40,10 @@ const TimesheetTable = () => {
   const fetchTimesheets = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/timesheets');
+      const token = localStorage.getItem('token');
+      const res = await api.get('/timesheets', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = res.data || [];
       setTimesheets(data);
       setFilteredTimesheets(data);
@@ -54,7 +58,10 @@ const TimesheetTable = () => {
 
   const fetchManagers = async () => {
     try {
-      const res = await api.get('/managers');
+      const token = localStorage.getItem('token');
+      const res = await api.get('/managers', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setManagers(res.data || []);
     } catch (err) {
       console.error('Failed to fetch managers:', err);
@@ -161,6 +168,7 @@ const TimesheetTable = () => {
     setIsModalOpen(false);
   };
 
+  // ─── Employee: Add new task ──────────────────────────────────────────────
   const addTask = () => {
     setSelectedEntry(prev => ({
       ...prev,
@@ -178,39 +186,47 @@ const TimesheetTable = () => {
     }));
   };
 
+  // ─── Update task field ───────────────────────────────────────────────────
   const updateTask = (taskId, field, value) => {
     setSelectedEntry(prev => ({
       ...prev,
-      tasks: prev.tasks?.map(t =>
+      tasks: prev.tasks.map(t =>
         t.id === taskId ? { ...t, [field]: value } : t
-      ) || [],
+      ),
     }));
   };
 
+  // ─── Remove task ─────────────────────────────────────────────────────────
   const removeTask = (taskId) => {
     if (!window.confirm('Remove this task?')) return;
     setSelectedEntry(prev => ({
       ...prev,
-      tasks: prev.tasks?.filter(t => t.id !== taskId) || [],
+      tasks: prev.tasks.filter(t => t.id !== taskId),
     }));
   };
 
   const totalHours = selectedEntry?.tasks?.reduce((sum, t) => sum + Number(t.hours || 0), 0) || 0;
 
+  // ─── Employee: Save edited timesheet ─────────────────────────────────────
   const handleModalSubmit = async () => {
     if (!selectedEntry) return;
 
-    const newTasks = selectedEntry.tasks?.filter(t => String(t.id).startsWith('new-')) || [];
+    const newTasks = selectedEntry.tasks.filter(t => String(t.id).startsWith('new-'));
     if (newTasks.some(t => !t.hours || Number(t.hours) <= 0)) {
       alert('All new tasks must have hours greater than 0.');
       return;
     }
 
     try {
-      await api.put(`/timesheets/${selectedEntry.id}`, {
-        tasks: selectedEntry.tasks,
-        totalHours: totalHours.toFixed(2),
-      });
+      const token = localStorage.getItem('token');
+      await api.put(
+        `/timesheets/${selectedEntry.id}`,
+        {
+          tasks: selectedEntry.tasks,
+          totalHours: totalHours.toFixed(2),
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       alert('Timesheet updated successfully!');
       fetchTimesheets();
       closeModal();
@@ -221,7 +237,7 @@ const TimesheetTable = () => {
     }
   };
 
-  // Admin/Dev: Approve
+  // ─── Admin/Dev: Approve ──────────────────────────────────────────────────
   const handleApprove = async () => {
     if (!reviewNote.trim()) {
       alert('Review note is required before approving.');
@@ -229,10 +245,15 @@ const TimesheetTable = () => {
     }
 
     try {
-      await api.put(`/timesheets/${selectedEntry.id}/approve`, {
-        reviewNote,
-        reviewedByManagerId: onBehalfOfManager ? selectedManagerId : null,
-      });
+      const token = localStorage.getItem('token');
+      await api.put(
+        `/timesheets/${selectedEntry.id}/approve`,
+        {
+          reviewNote,
+          reviewedByManagerId: onBehalfOfManager ? selectedManagerId : null,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       alert('Timesheet approved!');
       fetchTimesheets();
       closeModal();
@@ -242,7 +263,7 @@ const TimesheetTable = () => {
     }
   };
 
-  // Admin/Dev: Reject
+  // ─── Admin/Dev: Reject ───────────────────────────────────────────────────
   const handleReject = async () => {
     if (!rejectNote.trim()) {
       alert('Reject reason is required.');
@@ -250,7 +271,12 @@ const TimesheetTable = () => {
     }
 
     try {
-      await api.put(`/timesheets/${selectedEntry.id}/reject`, { rejectNote });
+      const token = localStorage.getItem('token');
+      await api.put(
+        `/timesheets/${selectedEntry.id}/reject`,
+        { rejectNote },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       alert('Timesheet rejected!');
       fetchTimesheets();
       closeModal();
@@ -261,6 +287,7 @@ const TimesheetTable = () => {
     }
   };
 
+  // Helper for client/project display in table
   const getClientProjectDisplay = (entry) => {
     if (!entry.tasks || entry.tasks.length === 0) return '—';
     const projects = entry.tasks
@@ -401,7 +428,7 @@ const TimesheetTable = () => {
                       entry.status === 'rejected' ? 'bg-red-100 text-red-800' :
                       'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {entry.status?.charAt(0).toUpperCase() + entry.status?.slice(1) || 'Pending'}
+                      {entry.status}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -448,211 +475,16 @@ const TimesheetTable = () => {
         </table>
       </div>
 
-      {/* Review / Approve / Reject Modal */}
-      {isModalOpen && selectedEntry && modalMode === 'review' && isAdminOrDev && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="sticky top-0 bg-white z-10 border-b px-8 py-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Review Timesheet – {new Date(selectedEntry.date).toLocaleDateString()}
-              </h2>
-              <button onClick={closeModal} className="text-gray-600 hover:text-gray-800">
-                <X size={28} />
-              </button>
-            </div>
-
-            <div className="p-8 space-y-10">
-              {/* Summary */}
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div>
-                    <p className="text-sm text-gray-600">Employee</p>
-                    <p className="text-lg font-medium">{selectedEntry.employee_name || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Manager</p>
-                    <p className="text-lg font-medium">{selectedEntry.manager_name || 'Not assigned'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Total Hours</p>
-                    <p className="text-xl font-bold text-custom-orange">{totalHours.toFixed(2)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tasks Summary */}
-              <div className="space-y-6">
-                <h3 className="text-xl font-semibold">Tasks</h3>
-                {selectedEntry.tasks?.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-4 py-2 text-left">Client/Project</th>
-                          <th className="px-4 py-2 text-left">Type</th>
-                          <th className="px-4 py-2 text-left">Project No.</th>
-                          <th className="px-4 py-2 text-left">Description</th>
-                          <th className="px-4 py-2 text-right">Hours</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {selectedEntry.tasks.map((task, idx) => (
-                          <tr key={task.id || idx}>
-                            <td className="px-4 py-3">{task.clientProjectName || '—'}</td>
-                            <td className="px-4 py-3">{task.projectType || '—'}</td>
-                            <td className="px-4 py-3">{task.projectNumber || '—'}</td>
-                            <td className="px-4 py-3">{task.description || '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium">{Number(task.hours || 0).toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-center text-gray-500 py-8">No tasks recorded.</p>
-                )}
-              </div>
-
-              {/* Review Section */}
-              <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
-                <div className="flex items-start gap-4">
-                  <AlertTriangle size={28} className="text-yellow-600 mt-1 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-lg font-semibold text-yellow-800">Review Required</h3>
-                    <p className="text-yellow-700 mt-1">
-                      Provide a review comment before approving or rejecting.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-lg font-medium text-gray-800 mb-3">
-                  Review Note <span className="text-red-600">*</span>
-                </label>
-                <textarea
-                  value={reviewNote}
-                  onChange={e => setReviewNote(e.target.value)}
-                  rows={4}
-                  placeholder="Enter your review comments here..."
-                  className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-custom-orange focus:border-custom-orange"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <input
-                  type="checkbox"
-                  checked={onBehalfOfManager}
-                  onChange={e => setOnBehalfOfManager(e.target.checked)}
-                  className="w-6 h-6 text-custom-orange border-gray-300 rounded focus:ring-custom-orange"
-                />
-                <label className="text-lg font-medium text-gray-700 cursor-pointer">
-                  Review / Approve on behalf of another manager
-                </label>
-              </div>
-
-              {onBehalfOfManager && (
-                <div>
-                  <label className="block text-lg font-medium text-gray-700 mb-3">
-                    Select Manager
-                  </label>
-                  <select
-                    value={selectedManagerId}
-                    onChange={e => setSelectedManagerId(e.target.value)}
-                    className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-custom-orange focus:border-custom-orange"
-                    required
-                  >
-                    <option value="">Choose manager...</option>
-                    {managers.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.first_name} {m.last_name} ({m.role_id === 1 ? 'Dev' : 'Admin'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="flex flex-wrap justify-end gap-4 pt-6">
-                <button
-                  onClick={closeModal}
-                  className="px-8 py-4 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition font-medium"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  onClick={() => setShowRejectConfirm(true)}
-                  className="px-8 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium shadow-md"
-                >
-                  Reject Timesheet
-                </button>
-
-                <button
-                  onClick={handleApprove}
-                  disabled={!reviewNote.trim()}
-                  className={`px-10 py-4 text-white font-medium rounded-xl transition shadow-md min-w-[160px] ${
-                    reviewNote.trim()
-                      ? 'bg-green-600 hover:bg-green-700'
-                      : 'bg-green-300 cursor-not-allowed'
-                  }`}
-                >
-                  Approve Timesheet
-                </button>
-              </div>
-
-              {/* Reject Confirmation Modal */}
-              {showRejectConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60]">
-                  <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
-                    <h3 className="text-xl font-bold text-red-700 mb-4">Reject Timesheet</h3>
-                    <p className="text-gray-700 mb-6">
-                      Please confirm rejection and provide a reason.
-                    </p>
-
-                    <textarea
-                      value={rejectNote}
-                      onChange={e => setRejectNote(e.target.value)}
-                      rows={4}
-                      placeholder="Reason for rejection..."
-                      className="w-full px-5 py-4 border border-gray-300 rounded-xl mb-6"
-                      required
-                    />
-
-                    <div className="flex justify-end gap-4">
-                      <button
-                        onClick={() => setShowRejectConfirm(false)}
-                        className="px-8 py-3 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleReject}
-                        disabled={!rejectNote.trim()}
-                        className={`px-8 py-3 text-white rounded-xl transition ${
-                          rejectNote.trim() ? 'bg-red-600 hover:bg-red-700' : 'bg-red-300 cursor-not-allowed'
-                        }`}
-                      >
-                        Confirm Reject
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View / Edit Modal */}
-      {isModalOpen && selectedEntry && modalMode !== 'review' && (
+      {/* Modal */}
+      {isModalOpen && selectedEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="sticky top-0 bg-white z-10 border-b px-8 py-6 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">
-                {modalMode === 'view' ? 'Timesheet Details' : 'Edit Your Timesheet'} – {new Date(selectedEntry.date).toLocaleDateString()}
+                {modalMode === 'view' ? 'Timesheet Details' :
+                 modalMode === 'edit' ? 'Edit Your Timesheet' :
+                 'Review Timesheet'} – {new Date(selectedEntry.date).toLocaleDateString()}
               </h2>
               <button onClick={closeModal} className="text-gray-600 hover:text-gray-800">
                 <X size={28} />
@@ -684,12 +516,13 @@ const TimesheetTable = () => {
 
                 {selectedEntry.tasks?.length > 0 ? (
                   selectedEntry.tasks.map((task, index) => (
-                    <div key={task.id || index} className="p-6 bg-white border rounded-xl shadow-sm">
+                    <div key={task.id} className="p-6 bg-white border rounded-xl shadow-sm">
                       <div className="text-sm font-medium text-gray-600 mb-4">
                         Task {index + 1}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Client / Project Name */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Client / Project Name</label>
                           {modalMode === 'edit' ? (
@@ -704,6 +537,7 @@ const TimesheetTable = () => {
                           )}
                         </div>
 
+                        {/* Project Type */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Project Type</label>
                           {modalMode === 'edit' ? (
@@ -721,6 +555,7 @@ const TimesheetTable = () => {
                           )}
                         </div>
 
+                        {/* Project No. / Opportunity Number */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Project No. / Opportunity Number</label>
                           {modalMode === 'edit' ? (
@@ -735,6 +570,7 @@ const TimesheetTable = () => {
                           )}
                         </div>
 
+                        {/* Task Description */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Task Description</label>
                           {modalMode === 'edit' ? (
@@ -750,15 +586,17 @@ const TimesheetTable = () => {
                           )}
                         </div>
 
+                        {/* Hours Spent */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Hours Spent</label>
-                          {modalMode === 'edit' ? (
+                          {modalMode === 'edit' && String(task.id).startsWith('new-') ? (
                             <input
                               type="number"
                               step="0.25"
                               min="0"
                               value={task.hours || ''}
                               onChange={e => updateTask(task.id, 'hours', e.target.value)}
+                              placeholder="e.g. 5.00"
                               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-custom-orange focus:border-custom-orange"
                               required
                             />
@@ -801,24 +639,153 @@ const TimesheetTable = () => {
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="pt-10 flex justify-end gap-4 border-t">
-                <button
-                  onClick={closeModal}
-                  className="px-10 py-4 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition font-medium"
-                >
-                  Close
-                </button>
+              {/* Review & approve/reject */}
+              {modalMode === 'review' && isAdminOrDev && (
+                <div className="mt-12 pt-8 border-t space-y-8">
+                  <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
+                    <div className="flex items-start gap-4">
+                      <AlertTriangle size={28} className="text-yellow-600 mt-1 flex-shrink-0" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-yellow-800">Review Required</h3>
+                        <p className="text-yellow-700 mt-1">
+                          Please provide a review comment before approving or rejecting.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-                {modalMode === 'edit' && roleId === 3 && (
+                  <div>
+                    <label className="block text-lg font-medium text-gray-800 mb-3">
+                      Review Note <span className="text-red-600">*</span>
+                    </label>
+                    <textarea
+                      value={reviewNote}
+                      onChange={e => setReviewNote(e.target.value)}
+                      rows={4}
+                      placeholder="Enter your review comments here..."
+                      className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-custom-orange focus:border-custom-orange"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="checkbox"
+                      checked={onBehalfOfManager}
+                      onChange={e => setOnBehalfOfManager(e.target.checked)}
+                      className="w-6 h-6 text-custom-orange border-gray-300 rounded focus:ring-custom-orange"
+                    />
+                    <label className="text-lg font-medium text-gray-700 cursor-pointer">
+                      Review / Approve on behalf of manager
+                    </label>
+                  </div>
+
+                  {onBehalfOfManager && (
+                    <div>
+                      <label className="block text-lg font-medium text-gray-700 mb-3">
+                        Select Manager
+                      </label>
+                      <select
+                        value={selectedManagerId}
+                        onChange={e => setSelectedManagerId(e.target.value)}
+                        className="w-full px-5 py-4 border border-gray-300 rounded-xl focus:ring-custom-orange focus:border-custom-orange"
+                        required
+                      >
+                        <option value="">Choose manager...</option>
+                        {managers.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.first_name} {m.last_name} ({m.role_id === 1 ? 'Dev' : 'Admin'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap justify-end gap-4 pt-6">
+                    <button
+                      onClick={closeModal}
+                      className="px-8 py-4 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition font-medium"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      onClick={() => setShowRejectConfirm(true)}
+                      className="px-8 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium shadow-md"
+                    >
+                      Reject Timesheet
+                    </button>
+
+                    <button
+                      onClick={handleApprove}
+                      disabled={!reviewNote.trim()}
+                      className={`px-10 py-4 text-white font-medium rounded-xl transition shadow-md min-w-[160px] ${
+                        reviewNote.trim()
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-green-300 cursor-not-allowed'
+                      }`}
+                    >
+                      Approve Timesheet
+                    </button>
+                  </div>
+
+                  {/* Reject Confirmation */}
+                  {showRejectConfirm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60]">
+                      <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+                        <h3 className="text-xl font-bold text-red-700 mb-4">Reject Timesheet</h3>
+                        <p className="text-gray-700 mb-6">
+                          Please confirm rejection and provide a reason.
+                        </p>
+
+                        <textarea
+                          value={rejectNote}
+                          onChange={e => setRejectNote(e.target.value)}
+                          rows={4}
+                          placeholder="Reason for rejection..."
+                          className="w-full px-5 py-4 border border-gray-300 rounded-xl mb-6"
+                        />
+
+                        <div className="flex justify-end gap-4">
+                          <button
+                            onClick={() => setShowRejectConfirm(false)}
+                            className="px-8 py-3 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleReject}
+                            disabled={!rejectNote.trim()}
+                            className={`px-8 py-3 text-white rounded-xl transition ${
+                              rejectNote.trim() ? 'bg-red-600 hover:bg-red-700' : 'bg-red-300 cursor-not-allowed'
+                            }`}
+                          >
+                            Confirm Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Employee Edit Actions */}
+              {modalMode === 'edit' && roleId === 3 && (
+                <div className="pt-10 flex justify-end gap-4 border-t">
+                  <button
+                    onClick={closeModal}
+                    className="px-10 py-4 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition font-medium"
+                  >
+                    Cancel
+                  </button>
                   <button
                     onClick={handleModalSubmit}
                     className="px-10 py-4 text-white rounded-xl transition font-medium shadow-md bg-custom-orange hover:bg-orange-600"
                   >
                     Save Changes
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

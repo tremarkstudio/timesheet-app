@@ -307,22 +307,22 @@ app.get('/users', authenticate, restrictTo(1, 2), (req, res) => {
 // ────────────────────────────────────────────────
 // GET MANAGERS (for review on behalf)
 // ────────────────────────────────────────────────
-app.get('/managers', authenticate, (req, res) => {
-  let query = 'SELECT id, first_name, last_name, username, role_id FROM users WHERE role_id IN (1, 2)';
-  let params = [];
+app.get('/managers', authenticate, async (req, res) => {
+  try {
+    let query = 'SELECT id, first_name, last_name, username, role_id FROM users WHERE role_id IN (1, 2)';
+    let params = [];
 
-  if (req.user.role_id === 3) {
-    query += ' AND id = (SELECT manager_id FROM users WHERE id = ?)';
-    params = [req.user.id];
-  }
-
-  db.query(query, params, (err, results) => {
-    if (err) {
-      console.error('Managers error:', err);
-      return res.status(500).json({ error: 'Database error' });
+    if (req.user.role_id === 3) {
+      query += ' AND id = (SELECT manager_id FROM users WHERE id = ?)';
+      params = [req.user.id];
     }
+
+    const [results] = await db.promise().query(query, params);
     res.json(results || []);
-  });
+  } catch (err) {
+    console.error('Managers fetch error:', err.message, err.stack);
+    res.status(500).json({ error: 'Failed to fetch managers' });
+  }
 });
 
 // ────────────────────────────────────────────────
@@ -463,70 +463,56 @@ app.put('/users/me', authenticate, upload.single('avatar'), async (req, res) => 
 // ────────────────────────────────────────────────
 
 // GET ALL TIMESHEETS (with tasks)
-app.get('/timesheets', authenticate, (req, res) => {
-  const userId = req.user.id;
-  const roleId = req.user.role_id;
+app.get('/timesheets', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const roleId = req.user.role_id;
 
-  let query = `
-    SELECT 
-      t.id, t.user_id, t.date, t.status, t.date_submitted, t.locked, t.total_hours,
-      t.approved_by, t.review_note,
-      CONCAT(u.first_name, ' ', u.last_name) AS employee_name,
-      CONCAT(m.first_name, ' ', m.last_name) AS manager_name
-    FROM timesheets t
-    JOIN users u ON t.user_id = u.id
-    LEFT JOIN users m ON u.manager_id = m.id
-    ${roleId === 3 ? 'WHERE t.user_id = ?' : ''}
-    ORDER BY t.date DESC
-  `;
+    let query = `
+      SELECT t.id, t.user_id, t.date, t.status, t.date_submitted, t.locked, t.total_hours,
+             CONCAT(u.first_name, ' ', u.last_name) AS employee_name,
+             CONCAT(m.first_name, ' ', m.last_name) AS manager_name
+      FROM timesheets t
+      JOIN users u ON t.user_id = u.id
+      LEFT JOIN users m ON u.manager_id = m.id
+    `;
+    let params = [];
 
-  const params = roleId === 3 ? [userId] : [];
-
-  db.query(query, params, (err, entries) => {
-    if (err) {
-      console.error('Timesheets fetch error:', err);
-      return res.status(500).json({ error: 'Database error' });
+    if (roleId === 3) {
+      query += ' WHERE t.user_id = ?';
+      params.push(userId);
     }
 
+    query += ' ORDER BY t.date DESC';
+
+    const [entries] = await db.promise().query(query, params);
+
+    if (entries.length === 0) return res.json([]);
+
     const entryIds = entries.map(e => e.id);
-    if (entryIds.length === 0) return res.json([]);
 
-    db.query(
-      `SELECT id, timesheet_id, title, type, client_project_name AS clientProjectName, project_code AS projectNumber, hours
-       FROM timesheet_tasks
-       WHERE timesheet_id IN (?)
-       ORDER BY id`,
-      [entryIds],
-      (err, tasks) => {
-        if (err) {
-          console.error('Tasks fetch error:', err);
-          return res.status(500).json({ error: 'Database error' });
-        }
-
-        const tasksByEntry = {};
-        tasks.forEach(t => {
-          if (!tasksByEntry[t.timesheet_id]) tasksByEntry[t.timesheet_id] = [];
-          tasksByEntry[t.timesheet_id].push({
-            id: t.id,
-            title: t.title,
-            type: t.type,
-            clientProjectName: t.clientProjectName,
-            projectNumber: t.projectNumber,
-            hours: t.hours
-          });
-        });
-
-        const result = entries.map(entry => ({
-          ...entry,
-          tasks: tasksByEntry[entry.id] || [],
-          totalHours: entry.total_hours || 0,
-          manager_name: entry.manager_name || 'Not assigned'
-        }));
-
-        res.json(result);
-      }
+    const [tasks] = await db.promise().query(
+      'SELECT * FROM timesheet_tasks WHERE timesheet_id IN (?) ORDER BY id',
+      [entryIds]
     );
-  });
+
+    const tasksByEntry = {};
+    tasks.forEach(t => {
+      if (!tasksByEntry[t.timesheet_id]) tasksByEntry[t.timesheet_id] = [];
+      tasksByEntry[t.timesheet_id].push(t);
+    });
+
+    const result = entries.map(entry => ({
+      ...entry,
+      tasks: tasksByEntry[entry.id] || [],
+      totalHours: entry.total_hours || 0
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('Timesheets fetch error:', err.message, err.stack);
+    res.status(500).json({ error: 'Failed to fetch timesheets' });
+  }
 });
 
 // GET SINGLE TIMESHEET
@@ -715,7 +701,7 @@ app.put('/timesheets/:id', authenticate, async (req, res) => {
 
 // APPROVE TIMESHEET
 app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, res) => {
-  const { id } = req.params;
+  console.log('HIT APPROVE ROUTE for timesheet', req.params.id);  const { id } = req.params;
   const { reviewNote, reviewedByManagerId } = req.body || {};
   const approver_id = req.user?.id;
 
@@ -723,18 +709,15 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
   if (!reviewNote?.trim()) return res.status(400).json({ error: 'Review note required' });
 
   try {
-    const [ts] = await db.promise().query(
-      'SELECT user_id, date FROM timesheets WHERE id = ? AND status = 0',
+    const [tsRows] = await db.promise().query(
+      'SELECT user_id FROM timesheets WHERE id = ? AND status = "pending"',
       [id]
     );
 
-    if (ts.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
-
-    const employeeId = ts[0].user_id;
-    const timesheetDate = ts[0].date;
+    if (tsRows.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
 
     await db.promise().query(
-      'UPDATE timesheets SET status = 1, approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
+      'UPDATE timesheets SET status = "approved", approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
       [approver_id, reviewNote, id]
     );
 
@@ -745,55 +728,40 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
       );
     }
 
-    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been approved.\nReview note: ${reviewNote}`;
-    await db.promise().query(
-      'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
-      [employeeId, 'Timesheet Approved', message, id]
-    );
-
     res.json({ message: 'Timesheet approved' });
   } catch (err) {
     console.error('Approve error:', err.message, err.stack);
-    res.status(500).json({ error: 'Failed to approve timesheet' });
+    res.status(500).json({ error: 'Failed to approve' });
   }
 });
 
 
 // REJECT TIMESHEET
 app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, res) => {
-  const { id } = req.params;
+  console.log('HIT REJECT ROUTE for timesheet', req.params.id);  const { id } = req.params;
   const { rejectNote } = req.body || {};
   const rejector_id = req.user?.id;
 
   if (!rejector_id) return res.status(401).json({ error: 'Not authenticated' });
-  if (!rejectNote?.trim()) return res.status(400).json({ error: 'Reject reason required' });
+  if (!rejectNote?.trim()) return res.status(400).json({ error: 'Reject note required' });
 
   try {
-    const [ts] = await db.promise().query(
-      'SELECT user_id, date FROM timesheets WHERE id = ? AND status = 0',
+    const [tsRows] = await db.promise().query(
+      'SELECT user_id FROM timesheets WHERE id = ? AND status = "pending"',
       [id]
     );
 
-    if (ts.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
-
-    const employeeId = ts[0].user_id;
-    const timesheetDate = ts[0].date;
+    if (tsRows.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
 
     await db.promise().query(
-      'UPDATE timesheets SET status = 2, rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
+      'UPDATE timesheets SET status = "rejected", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
       [rejector_id, rejectNote, id]
-    );
-
-    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been disapproved.\nReason: ${rejectNote}`;
-    await db.promise().query(
-      'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
-      [employeeId, 'Timesheet Disapproved', message, id]
     );
 
     res.json({ message: 'Timesheet rejected' });
   } catch (err) {
     console.error('Reject error:', err.message, err.stack);
-    res.status(500).json({ error: 'Failed to reject timesheet' });
+    res.status(500).json({ error: 'Failed to reject' });
   }
 });
 

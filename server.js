@@ -105,13 +105,7 @@ db.getConnection((err, connection) => {
   }
 });
 
-db.connect(err => {
-  if (err) {
-    console.error('MySQL connection failed:', err.message);
-  } else {
-    console.log('MySQL connected successfully');
-  }
-});
+
 
 // Auth middleware
 const authenticate = (req, res, next) => {

@@ -21,9 +21,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.RESEND_API_KEY   
   }
 });
-console.log('Attempting to send reset email to:', email);
-console.log('From:', process.env.EMAIL_FROM || 'not set');
-console.log('Using Resend API key:', !!process.env.RESEND_API_KEY);
+
 
 
 
@@ -1178,7 +1176,9 @@ app.post('/request-password-reset', async (req, res) => {
   const { email } = req.body;
 
   if (!email) return res.status(400).json({ error: 'Email is required' });
-
+    console.log('Attempting to send reset email to:', email);
+    console.log('From:', process.env.EMAIL_FROM || 'not set');
+    console.log('Using Resend API key:', !!process.env.RESEND_API_KEY);
   try {
     // Find user by email
     const [users] = await db.promise().query(

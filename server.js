@@ -71,13 +71,38 @@ app.use((req, res, next) => {
 });
 
 // MySQL Connection
-const db = mysql.createConnection({
+const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 20110,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  connectTimeout: 10000,
+  // Automatically reconnect on loss
+  reconnect: true,
+});
+
+// Handle connection errors globally
+db.on('error', (err) => {
+  console.error('MySQL pool error:', err);
+  if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+    console.log('Reconnecting to MySQL...');
+  }
+});
+
+
+// Test connection on startup
+db.getConnection((err, connection) => {
+  if (err) {
+    console.error('Initial MySQL connection failed:', err.message);
+  } else {
+    console.log('MySQL pool connected successfully');
+    connection.release();
+  }
 });
 
 db.connect(err => {

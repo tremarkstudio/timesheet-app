@@ -1284,36 +1284,92 @@ app.post('/request-password-reset', async (req, res) => {
 app.post('/reset-password', async (req, res) => {
   const { token, newPassword } = req.body;
 
-  if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
+  console.log('Reset password attempt received');
+  console.log('Token provided:', token ? 'yes (length ' + token.length + ')' : 'missing');
+  console.log('New password provided:', newPassword ? 'yes (length ' + newPassword.length + ')' : 'missing');
+
+  if (!token || !newPassword) {
+    console.warn('Missing token or password');
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
 
   try {
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
-
-    // Check if token is still valid in DB
-    const [rows] = await db.promise().query(
-      'SELECT reset_expires FROM users WHERE id = ? AND reset_token = ?',
-      [userId, token]
-    );
-
-    if (rows.length === 0 || new Date(rows[0].reset_expires) < new Date()) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    // Step 1: Verify JWT signature and decode
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log('Token verified successfully. Decoded userId:', decoded.userId);
+    } catch (jwtErr) {
+      console.error('JWT verification failed:', jwtErr.message, jwtErr.name);
+      return res.status(400).json({ error: 'Invalid reset token signature' });
     }
 
-    // Hash new password
+    const userId = decoded.userId;
+
+    // Step 2: Check if user exists and token matches + not expired
+    const [rows] = await db.promise().query(
+      'SELECT id, reset_token, reset_expires FROM users WHERE id = ?',
+      [userId]
+    );
+
+    console.log('Users found in DB:', rows.length);
+
+    if (rows.length === 0) {
+      console.warn('No user found for ID:', userId);
+      return res.status(400).json({ error: 'User not found' });
+    }
+
+    const user = rows[0];
+    console.log('Stored token in DB:', user.reset_token ? 'present' : 'NULL');
+    console.log('Token expires at:', user.reset_expires);
+    console.log('Current time:', new Date().toISOString());
+
+    if (!user.reset_token || user.reset_token !== token) {
+      console.warn('Token mismatch - DB token != submitted token');
+      return res.status(400).json({ error: 'Invalid reset token' });
+    }
+
+    if (!user.reset_expires || new Date(user.reset_expires) < new Date()) {
+      console.warn('Token expired or no expiration date');
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    // Step 3: Hash and update password + clear token
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update password and clear token
-    await db.promise().query(
+    const [updateResult] = await db.promise().query(
       'UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?',
       [hashedPassword, userId]
     );
 
+    console.log('Password update affected rows:', updateResult.affectedRows);
+
+    if (updateResult.affectedRows === 0) {
+      console.error('Password update failed - no rows affected for userId:', userId);
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    console.log('Password reset SUCCESS for userId:', userId);
+
     res.json({ message: 'Password reset successfully. Please login.' });
   } catch (err) {
-    console.error('Password reset error:', err);
-    res.status(400).json({ error: 'Invalid or expired token' });
+    console.error('Password reset error:', {
+      message: err.message,
+      name: err.name,
+      code: err.code,
+      stack: err.stack?.substring(0, 500), // truncate for log readability
+      tokenProvided: !!token,
+      newPasswordProvided: !!newPassword
+    });
+
+    if (err.name === 'TokenExpiredError') {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(400).json({ error: 'Invalid reset token' });
+    }
+
+    res.status(500).json({ error: 'Server error during password reset' });
   }
 });
 

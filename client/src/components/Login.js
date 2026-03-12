@@ -37,10 +37,13 @@ const Login = () => {
         {/* Logo / Brand */}
         <div className="flex flex-col items-center mb-8">
           <img
-  src={jimmacLogo}
-  alt="Jimmac Timesheet Logo"
-  className="h-16 w-auto mb-3 object-contain"
-/>
+            src="/Jimmac-Logo.png" 
+            alt="Jimmac Timesheet Logo"
+            className="h-16 w-auto mb-3 object-contain"
+            onError={(e) => {
+              e.target.src = 'https://via.placeholder.com/150x60?text=Jimmac'; // fallback
+            }}
+          />
           <h1 className="text-3xl font-bold text-gray-900">Jimmac WMA</h1>
         </div>
 

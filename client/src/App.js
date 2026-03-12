@@ -12,6 +12,7 @@ import TimesheetsPage from './pages/TimesheetsPage';
 import CalendarPage from './pages/CalendarPage';
 import UserManagement from './pages/UserManagement';
 import ReportingPage from './pages/ReportingPage';
+import ForgotPassword from './pages/ForgotPassword';
 
 // Protected route wrappers
 const ProtectedRoute = ({ children }) => {
@@ -34,7 +35,7 @@ function App() {
             ? <Navigate to="/dashboard" replace /> 
             : <Navigate to="/login" replace />
         } />
-
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* Authenticated routes with Layout */}
         <Route element={
           <ProtectedRoute>

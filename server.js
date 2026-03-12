@@ -42,17 +42,6 @@ async function sendBrevoEmail(to, subject, htmlContent) {
 
 const app = express();
 
-
-
-// Verify on startup (optional but useful)
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('Brevo SMTP setup error:', error.message);
-  } else {
-    console.log('Brevo SMTP ready');
-  }
-});
-
 // Uploads folder
 const uploadsDir = 'uploads';
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });

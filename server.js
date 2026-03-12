@@ -7,7 +7,38 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+
 require('dotenv').config();
+
+
+
+const axios = require('axios');
+async function sendBrevoEmail(to, subject, htmlContent) {
+  try {
+    const response = await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: { name: 'JIMMAC Timesheet', email: 'noreply@jimmac.co.za' },
+        to: [{ email: to }],
+        subject,
+        htmlContent,
+      },
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('Brevo API email sent:', response.data);
+    return true;
+  } catch (err) {
+    console.error('Brevo API error:', err.response?.data || err.message);
+    throw err;
+  }
+}
+
 
 const app = express();
 
@@ -1172,14 +1203,15 @@ app.put('/leave/:id/reject', authenticate, restrictTo(1, 2), async (req, res) =>
 
 
 
-// REQUEST PASSWORD RESET (sends email with reset token)
+// REQUEST PASSWORD RESET (using Brevo API - no SMTP timeout issues)
 app.post('/request-password-reset', async (req, res) => {
   const { email } = req.body;
 
   if (!email) return res.status(400).json({ error: 'Email is required' });
-    console.log('Attempting to send reset email to:', email);
-    console.log('From:', process.env.EMAIL_FROM || 'not set');
-    console.log('Using Resend API key:', !!process.env.RESEND_API_KEY);
+
+  console.log('Attempting to send reset email to:', email);
+  console.log('From:', process.env.EMAIL_FROM || 'not set');
+
   try {
     // Find user by email
     const [users] = await db.promise().query(
@@ -1201,36 +1233,50 @@ app.post('/request-password-reset', async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    // Save token to DB (add reset_token & reset_expires columns if not present)
+    // Save token to DB
     await db.promise().query(
       'UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?',
       [resetToken, user.id]
     );
 
-    // Send email
+    // Brevo API email send
     const resetUrl = `https://system.jimmac.co.za/reset-password?token=${resetToken}`;
-    const mailOptions = {
-      from: `"JIMMAC Work Management System" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Password Reset Request',
-      text: `Click this link to reset your password: ${resetUrl}\nLink expires in 1 hour.`,
-      html: `
-        <h2>Reset Your Password</h2>
-        <p>Click the button below to reset your password:</p>
-        <a href="${resetUrl}" style="background:#f97316; color:white; padding:12px 24px; text-decoration:none; border-radius:6px; display:inline-block;">
-          Reset Password
-        </a>
-        <p>If you didn't request this, ignore this email.</p>
-        <p>Link expires in 1 hour.</p>
-      `,
-    };
 
-    await transporter.sendMail(mailOptions);
+    const response = await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: { name: 'JIMMAC Timesheet', email: 'noreply@jimmac.co.za' },
+        to: [{ email: email }],
+        subject: 'Password Reset Request',
+        htmlContent: `
+          <h2>Reset Your Password</h2>
+          <p>Click the button below to reset your password:</p>
+          <a href="${resetUrl}" style="background:#f97316; color:white; padding:12px 24px; text-decoration:none; border-radius:6px; display:inline-block;">
+            Reset Password
+          </a>
+          <p>If you didn't request this, ignore this email.</p>
+          <p>Link expires in 1 hour.</p>
+        `
+      },
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+          'accept': 'application/json'
+        }
+      }
+    );
+
+    console.log('Brevo API success:', response.data);
 
     res.json({ message: 'If the email exists, a reset link has been sent.' });
   } catch (err) {
-    console.error('Password reset request error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Password reset request error:', {
+      message: err.message,
+      response: err.response?.data || 'No response',
+      stack: err.stack
+    });
+    res.status(500).json({ error: 'Failed to send reset email' });
   }
 });
 

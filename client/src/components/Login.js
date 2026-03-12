@@ -5,6 +5,7 @@ import api from '../api/axios';
 import { Loader2 } from "lucide-react";
 
 
+
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -36,16 +37,15 @@ const Login = () => {
       <div className="bg-white p-8 md:p-10 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200">
         {/* Logo / Brand */}
         <div className="flex flex-col items-center mb-8">
-        <img
-          src="/Jimmac-Logo.png"   // ← leading slash = from public root
-          alt="Jimmac Timesheet Logo"
-          className="h-16 w-auto mb-3 object-contain"
-          onError={(e) => {
-            e.target.onerror = null; // prevent infinite loop
-            e.target.src = 'https://via.placeholder.com/150x60?text=Jimmac'; // fallback
-          }}
-        />
-          <h1 className="text-3xl font-bold text-gray-900">Jimmac WMA</h1>
+          <img
+            src="/Jimmac-Logo.png" 
+            alt="Jimmac Timesheet Logo"
+            className="h-16 w-auto mb-3 object-contain"
+            onError={(e) => {
+              e.target.src = 'https://via.placeholder.com/150x60?text=Jimmac'; // fallback
+            }}
+          />
+          <h1 className="text-3xl font-bold text-gray-900">Management App</h1>
         </div>
 
         {/* Error Message */}
@@ -94,7 +94,7 @@ const Login = () => {
           >
             {loading ? (
               <>
-                <Loader2 className="animate-spin" size={20} />
+                <Loader2 size={20} className="animate-spin" />
                 Logging in...
               </>
             ) : (

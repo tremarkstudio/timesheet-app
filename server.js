@@ -73,7 +73,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// MySQL Connection
+// MySQL Connection Pool
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -85,25 +85,22 @@ const db = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   connectTimeout: 10000,
-  // Automatically reconnect on loss
-  reconnect: true,
 });
 
-// Handle connection errors globally
+// Global error handler for pool
 db.on('error', (err) => {
-  console.error('MySQL pool error:', err);
+  console.error('MySQL pool error:', err.message);
   if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
-    console.log('Reconnecting to MySQL...');
+    console.log('MySQL connection lost - pool will auto-reconnect');
   }
 });
 
-
-// Test connection on startup
+// Optional startup test
 db.getConnection((err, connection) => {
   if (err) {
-    console.error('Initial MySQL connection failed:', err.message);
+    console.error('Initial pool test failed:', err.message);
   } else {
-    console.log('MySQL pool connected successfully');
+    console.log('MySQL pool ready');
     connection.release();
   }
 });
@@ -1271,7 +1268,7 @@ app.post('/reset-password', async (req, res) => {
 });
 
 
-pp.get('/test-resend', async (req, res) => {
+app.get('/test-resend', async (req, res) => {
   try {
     await transporter.sendMail({
       from: `"Test" <noreply@jimmac.co.za>`,

@@ -18,9 +18,14 @@ const transporter = nodemailer.createTransport({
   secure: false,
   auth: {
     user: 'resend',
-    pass: process.env.RESEND_API_KEY
+    pass: re_DG4ZdDSr_EGpqjFdSybaBS4DruCZsKbBp   
   }
 });
+console.log('Attempting to send reset email to:', email);
+console.log('From:', process.env.EMAIL_FROM || 'not set');
+console.log('Using Resend API key:', !!process.env.RESEND_API_KEY);
+
+
 
 transporter.verify((error, success) => {
   if (error) console.error('Email setup error:', error);
@@ -1266,7 +1271,21 @@ app.post('/reset-password', async (req, res) => {
 });
 
 
-
+pp.get('/test-resend', async (req, res) => {
+  try {
+    await transporter.sendMail({
+      from: `"Test" <noreply@jimmac.co.za>`,
+      to: 'your-personal-email@gmail.com',  // ← change to your email
+      subject: 'Resend Test from Render',
+      text: 'This is a test email from your app.',
+      html: '<h1>Test Email</h1><p>It worked!</p>'
+    });
+    res.send('Test email sent via Resend!');
+  } catch (err) {
+    console.error('Test email failed:', err.message, err.stack);
+    res.status(500).send('Failed: ' + err.message);
+  }
+});
 
 
 // ==================== SERVER START ====================

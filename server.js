@@ -701,7 +701,8 @@ app.put('/timesheets/:id', authenticate, async (req, res) => {
 
 // APPROVE TIMESHEET
 app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, res) => {
-  console.log('HIT APPROVE ROUTE for timesheet', req.params.id);  const { id } = req.params;
+  console.log('HIT APPROVE ROUTE for timesheet', req.params.id);
+  const { id } = req.params;
   const { reviewNote, reviewedByManagerId } = req.body || {};
   const approver_id = req.user?.id;
 
@@ -710,14 +711,19 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
 
   try {
     const [tsRows] = await db.promise().query(
-      'SELECT user_id FROM timesheets WHERE id = ? AND status = "pending"',
+      "SELECT user_id, date FROM timesheets WHERE id = ? AND status = 'pending'",
       [id]
     );
 
-    if (tsRows.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    if (tsRows.length === 0) {
+      return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    }
+
+    const employeeId = tsRows[0].user_id;
+    const timesheetDate = tsRows[0].date;
 
     await db.promise().query(
-      'UPDATE timesheets SET status = "approved", approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?',
+      "UPDATE timesheets SET status = 'approved', approved_by = ?, approved_at = NOW(), review_note = ? WHERE id = ?",
       [approver_id, reviewNote, id]
     );
 
@@ -728,17 +734,24 @@ app.put('/timesheets/:id/approve', authenticate, restrictTo(1, 2), async (req, r
       );
     }
 
-    res.json({ message: 'Timesheet approved' });
+    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been APPROVED.\nReview note: ${reviewNote}`;
+    await db.promise().query(
+      'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
+      [employeeId, 'Timesheet Approved', message, id]
+    );
+
+    res.json({ message: 'Timesheet approved successfully' });
   } catch (err) {
     console.error('Approve error:', err.message, err.stack);
-    res.status(500).json({ error: 'Failed to approve' });
+    res.status(500).json({ error: 'Failed to approve timesheet' });
   }
 });
 
 
 // REJECT TIMESHEET
 app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, res) => {
-  console.log('HIT REJECT ROUTE for timesheet', req.params.id);  const { id } = req.params;
+  console.log('HIT REJECT ROUTE for timesheet', req.params.id);
+  const { id } = req.params;
   const { rejectNote } = req.body || {};
   const rejector_id = req.user?.id;
 
@@ -747,21 +760,32 @@ app.put('/timesheets/:id/reject', authenticate, restrictTo(1, 2), async (req, re
 
   try {
     const [tsRows] = await db.promise().query(
-      'SELECT user_id FROM timesheets WHERE id = ? AND status = "pending"',
+      "SELECT user_id, date FROM timesheets WHERE id = ? AND status = 'pending'",
       [id]
     );
 
-    if (tsRows.length === 0) return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    if (tsRows.length === 0) {
+      return res.status(404).json({ error: 'Timesheet not found or not pending' });
+    }
+
+    const employeeId = tsRows[0].user_id;
+    const timesheetDate = tsRows[0].date;
 
     await db.promise().query(
-      'UPDATE timesheets SET status = "rejected", rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?',
+      "UPDATE timesheets SET status = 'disapproved', rejected_by = ?, rejected_at = NOW(), reject_note = ? WHERE id = ?",
       [rejector_id, rejectNote, id]
     );
 
-    res.json({ message: 'Timesheet rejected' });
+    const message = `Your timesheet for ${new Date(timesheetDate).toLocaleDateString()} has been REJECTED.\nReason: ${rejectNote}`;
+    await db.promise().query(
+      'INSERT INTO notifications (user_id, title, message, related_timesheet_id) VALUES (?, ?, ?, ?)',
+      [employeeId, 'Timesheet Rejected', message, id]
+    );
+
+    res.json({ message: 'Timesheet rejected successfully' });
   } catch (err) {
     console.error('Reject error:', err.message, err.stack);
-    res.status(500).json({ error: 'Failed to reject' });
+    res.status(500).json({ error: 'Failed to reject timesheet' });
   }
 });
 

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { Loader2 } from "lucide-react";
+import jimmacLogo from '../public/Jimmac-Logo.png';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -36,13 +37,10 @@ const Login = () => {
         {/* Logo / Brand */}
         <div className="flex flex-col items-center mb-8">
           <img
-            src="jimmac-logo.png" 
-            alt="Jimmac Timesheet Logo"
-            className="h-16 w-auto mb-3 object-contain"
-            onError={(e) => {
-              e.target.src = 'https://via.placeholder.com/150x60?text=Jimmac'; // fallback
-            }}
-          />
+  src={jimmacLogo}
+  alt="Jimmac Timesheet Logo"
+  className="h-16 w-auto mb-3 object-contain"
+/>
           <h1 className="text-3xl font-bold text-gray-900">Jimmac WMA</h1>
         </div>
 

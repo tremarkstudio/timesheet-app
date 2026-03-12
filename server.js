@@ -18,7 +18,7 @@ const transporter = nodemailer.createTransport({
   secure: false,
   auth: {
     user: 'resend',
-    pass: re_DG4ZdDSr_EGpqjFdSybaBS4DruCZsKbBp   
+    pass: process.env.RESEND_API_KEY   
   }
 });
 console.log('Attempting to send reset email to:', email);

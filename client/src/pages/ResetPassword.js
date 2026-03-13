@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';  // ← add useNavigate
 import api from '../api/axios';
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const navigate = useNavigate();  // ← add this
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,12 @@ const ResetPassword = () => {
 
     try {
       const res = await api.post('/reset-password', { token, newPassword });
-      setMessage(res.data.message || 'Password reset successful! You can now log in.');
+      setMessage(res.data.message || 'Password reset successful! Redirecting to login...');
+
+      // Auto-redirect to login after 2 seconds (gives user time to read message)
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
     } catch (err) {
       const errMsg = err.response?.data?.error || 'Failed to reset password. Please try again.';
       setMessage(errMsg);
@@ -49,7 +55,9 @@ const ResetPassword = () => {
         <h1 className="text-2xl font-bold mb-6 text-center">Set New Password</h1>
 
         {message && (
-          <div className={`mb-6 p-4 rounded-xl text-center ${message.includes('successful') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          <div className={`mb-6 p-4 rounded-xl text-center ${
+            message.includes('successful') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+          }`}>
             {message}
           </div>
         )}

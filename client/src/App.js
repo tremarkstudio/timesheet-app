@@ -1,7 +1,7 @@
 // src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './pages/Layout'; // ← We'll create this below
+import Layout from './pages/Layout';
 import Login from './components/Login';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
@@ -13,6 +13,7 @@ import CalendarPage from './pages/CalendarPage';
 import UserManagement from './pages/UserManagement';
 import ReportingPage from './pages/ReportingPage';
 import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';  // ← ADD THIS IMPORT
 
 // Protected route wrappers
 const ProtectedRoute = ({ children }) => {
@@ -29,13 +30,15 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />  {/* ← ADD THIS LINE */}
 
         <Route path="/" element={
           localStorage.getItem('token') 
             ? <Navigate to="/dashboard" replace /> 
             : <Navigate to="/login" replace />
         } />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+
         {/* Authenticated routes with Layout */}
         <Route element={
           <ProtectedRoute>

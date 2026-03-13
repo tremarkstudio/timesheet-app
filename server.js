@@ -22,6 +22,7 @@ async function sendBrevoEmail(to, subject, htmlContent) {
         to: [{ email: to }],
         subject,
         htmlContent,
+        params: { track_clicks: false }
       },
       {
         headers: {

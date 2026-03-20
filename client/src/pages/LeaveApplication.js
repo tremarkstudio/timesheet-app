@@ -1,6 +1,6 @@
 // client/src/pages/LeaveApplication.js
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Send, Loader2, AlertTriangle, FileUp, Info } from 'lucide-react';
+import { CheckCircle, XCircle, Send, Loader2, AlertTriangle, FileUp, Info , Filter} from 'lucide-react';
 import api from '../api/axios';
 
 const LeaveApplication = () => {

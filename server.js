@@ -263,15 +263,20 @@ app.post('/login', (req, res) => {
 // ────────────────────────────────────────────────
 // USER PROFILE (/users/me)
 // ────────────────────────────────────────────────
+// USER PROFILE (/users/me) - IMPROVED
 app.get('/users/me', authenticate, async (req, res) => {
   const userId = req.user.id;
 
   try {
     const [results] = await db.promise().query(
-      `SELECT id, username, first_name, last_name, email, phone, role_id,
-              employee_id, department, job_title, employment_type, start_date,
-              manager_id, leave_balance
-       FROM users WHERE id = ?`,
+      `SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.phone, 
+              u.role_id, u.employee_id, u.department, u.job_title, 
+              u.employment_type, u.start_date, u.manager_id, u.leave_balance,
+              u.avatar_url,
+              CONCAT(m.first_name, ' ', m.last_name) AS manager_name
+       FROM users u
+       LEFT JOIN users m ON u.manager_id = m.id
+       WHERE u.id = ?`,
       [userId]
     );
 
@@ -456,37 +461,57 @@ app.put('/users/:id', authenticate, restrictTo(1, 2), upload.single('avatar'), a
 });
 
 // ────────────────────────────────────────────────
-// SELF-UPDATE PROFILE (/users/me)
+// SELF-UPDATE PROFILE (/users/me) - with avatar support
 // ────────────────────────────────────────────────
 app.put('/users/me', authenticate, upload.single('avatar'), async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user?.id;
 
-  const allowed = {};
-  const safeFields = [
-    'first_name', 'last_name', 'email', 'phone',
-    'job_title', 'department', 'team', 'employment_type', 'start_date'
-  ];
-
-  safeFields.forEach(field => {
-    if (req.body[field] !== undefined && req.body[field] !== null) {
-      allowed[field] = req.body[field];
-    }
-  });
-
-  if (req.file) {
-    allowed.avatar_url = req.file.path.replace(/^public\//, '');
+  if (!userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  if (Object.keys(allowed).length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
-  }
+  const updates = req.body || {};
 
   try {
-    await db.query('UPDATE users SET ? WHERE id = ?', [allowed, userId]);
+    let fields = [];
+    let values = [];
+
+    const allowedFields = [
+      'first_name', 'last_name', 'email', 'phone',
+      'job_title', 'department', 'team', 'employment_type'
+    ];
+
+    allowedFields.forEach(field => {
+      if (updates[field] !== undefined && updates[field] !== null && updates[field] !== '') {
+        fields.push(`${field} = ?`);
+        values.push(updates[field]);
+      }
+    });
+
+    if (req.file) {
+      fields.push('avatar_url = ?');
+      values.push(req.file.path.replace(/^public\//, 'uploads/'));
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(userId);
+
+    const [result] = await db.promise().query(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     res.json({ message: 'Profile updated successfully' });
   } catch (err) {
-    console.error('Self-update error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Self-update error:', err.message);
+    res.status(500).json({ error: 'Server error during profile update' });
   }
 });
 

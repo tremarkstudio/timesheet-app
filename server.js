@@ -589,24 +589,29 @@ app.get('/timesheets/:id', authenticate, (req, res) => {
   );
 });
 
-// SUBMIT NEW TIMESHEET (fixed field mapping)
+// SUBMIT NEW TIMESHEET - FIXED for FormData + JSON tasks
 app.post('/timesheets', authenticate, upload.single('attachment'), async (req, res) => {
   const userId = req.user.id;
-  const { date, tasks } = req.body;
+  const { date, tasks: tasksString } = req.body;   // tasks comes as string from FormData
   const attachment_path = req.file ? req.file.path : null;
 
-  if (!date || !tasks) {
-    return res.status(400).json({ error: 'Date and tasks are required' });
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required' });
+  }
+
+  if (!tasksString) {
+    return res.status(400).json({ error: 'Tasks are required' });
   }
 
   let parsedTasks;
   try {
-    parsedTasks = JSON.parse(tasks);
+    parsedTasks = JSON.parse(tasksString);
     if (!Array.isArray(parsedTasks) || parsedTasks.length === 0) {
       return res.status(400).json({ error: 'Tasks must be a non-empty array' });
     }
   } catch (err) {
-    return res.status(400).json({ error: 'Invalid tasks JSON format' });
+    console.error('JSON parse error for tasks:', err);
+    return res.status(400).json({ error: 'Invalid tasks format' });
   }
 
   const totalHours = parsedTasks.reduce((sum, t) => sum + Number(t.hours || 0), 0);
@@ -622,14 +627,14 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
 
     const timesheetId = result.insertId;
 
-    // Insert tasks with correct column mapping
+    // Insert tasks with correct column names
     if (parsedTasks.length > 0) {
       const taskValues = parsedTasks.map(t => [
         timesheetId,
-        t.title || t.description || 'Untitled task',           // title
-        t.type || t.projectType || '',                         // type
-        t.clientProjectName || '',                             // client_project_name
-        t.projectNumber || t.projectCode || null,              // project_code
+        t.description || t.title || 'Untitled task',           // title
+        t.projectType || '',                                   // type
+        t.clientProjectName?.trim() || '',                     // client_project_name
+        t.projectNumber?.trim() || null,                       // project_code
         Number(t.hours || 0)
       ]);
 
@@ -646,17 +651,8 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
       id: timesheetId 
     });
   } catch (err) {
-    console.error('Timesheet submission error:', err);
-    let userMessage = 'Failed to submit timesheet';
-
-    if (err.code === 'ER_BAD_FIELD_ERROR') {
-      userMessage = `Database error: Missing or unknown column (${err.sqlMessage || err.message})`;
-    } else if (err.code === 'ER_NO_REFERENCED_ROW_2') {
-      userMessage = 'Invalid user ID or foreign key constraint';
-      
-    }
-
-    res.status(500).json({ error: userMessage });
+    console.error('Timesheet submission error:', err.message, err.stack);
+    res.status(500).json({ error: 'Failed to submit timesheet' });
   }
 });
 

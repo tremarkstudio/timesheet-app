@@ -102,65 +102,66 @@ const TimesheetForm = ({ onSubmitSuccess }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+  e.preventDefault();
+  setError('');
+  setSuccess('');
 
-    if (!date) {
-      setError('Date is required');
+  if (!date) {
+    setError('Date is required');
+    return;
+  }
+
+  // Validation
+  for (const t of tasks) {
+    if (!t.clientProjectName?.trim()) {
+      setError('All tasks must have Client / Project Name');
       return;
     }
-
-    for (const t of tasks) {
-      if (!t.clientProjectName?.trim()) {
-        setError('All tasks must have Client / Project Name');
-        return;
-      }
-      if (!t.projectType) {
-        setError('All tasks must have Project Type');
-        return;
-      }
-      if (!t.description?.trim()) {
-        setError('All tasks must have Task Description');
-        return;
-      }
-      if (t.hours === '' || Number(t.hours) < 0) {
-        setError('All tasks must have Hours Spent (0 or greater)');
-        return;
-      }
+    if (!t.description?.trim()) {
+      setError('All tasks must have Task Description');
+      return;
     }
-
-    try {
-      const token = localStorage.getItem('token');
-      const formData = new FormData();
-      formData.append('date', date);
-      formData.append('tasks', JSON.stringify(tasks));
-      if (attachment) formData.append('attachment', attachment);
-
-      await api.post('/timesheets', formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      setSuccess('Timesheet submitted successfully!');
-      setDate('');
-      setTasks([{
-        id: `task-${Date.now()}`,
-        clientProjectName: '',
-        projectType: 'Project admin & Management',
-        projectNumber: '',
-        description: '',
-        hours: '',
-      }]);
-      setAttachment(null);
-      if (onSubmitSuccess) onSubmitSuccess();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to submit timesheet');
-      console.error(err);
+    if (!t.hours || Number(t.hours) <= 0) {
+      setError('All tasks must have valid hours');
+      return;
     }
-  };
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('date', date);
+    formData.append('tasks', JSON.stringify(tasks));   // This is the key line
+    if (attachment) formData.append('attachment', attachment);
+
+    const token = localStorage.getItem('token');
+
+    await api.post('/timesheets', formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        // Do NOT set Content-Type here - let browser set it for FormData
+      },
+    });
+
+    setSuccess('Timesheet submitted successfully!');
+    
+    // Reset form
+    setDate('');
+    setTasks([{
+      id: `task-${Date.now()}`,
+      clientProjectName: '',
+      projectType: 'Project admin & Management',
+      projectNumber: '',
+      description: '',
+      hours: '',
+    }]);
+    setAttachment(null);
+
+    if (onSubmitSuccess) onSubmitSuccess();
+  } catch (err) {
+    console.error(err);
+    setError(err.response?.data?.error || 'Failed to submit timesheet');
+  }
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-10">

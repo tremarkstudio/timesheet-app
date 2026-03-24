@@ -337,100 +337,168 @@ const TimesheetTable = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="w-full min-w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              {isAdminOrDev && (
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                  Employee
-                  <input type="text" value={filters.employee} onChange={e => setFilters({ ...filters, employee: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-                </th>
-              )}
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Date
-                <input type="text" value={filters.date} onChange={e => setFilters({ ...filters, date: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Client / Project
-                <input type="text" value={filters.clientProject} onChange={e => setFilters({ ...filters, clientProject: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Project No.
-                <input type="text" value={filters.projectNumber} onChange={e => setFilters({ ...filters, projectNumber: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Total Hours
-                <input type="text" value={filters.totalHours} onChange={e => setFilters({ ...filters, totalHours: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Tasks
-                <input type="text" value={filters.tasksCount} onChange={e => setFilters({ ...filters, tasksCount: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Submitted
-                <input type="text" value={filters.submitted} onChange={e => setFilters({ ...filters, submitted: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Status
-                <input type="text" value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
+  <div className="overflow-x-auto">   {/* ← This makes the table scrollable horizontally */}
+    <table className="w-full min-w-[1100px]">   {/* ← Minimum width to prevent squeezing */}
+      <thead className="bg-gray-50 sticky top-0 z-10">
+        <tr>
+          {isAdminOrDev && (
+            <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[140px]">
+              Employee
+              <input
+                type="text"
+                value={filters.employee}
+                onChange={e => setFilters({ ...filters, employee: e.target.value })}
+                placeholder="Filter..."
+                className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+              />
+            </th>
+          )}
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[110px]">
+            Date
+            <input
+              type="text"
+              value={filters.date}
+              onChange={e => setFilters({ ...filters, date: e.target.value })}
+              placeholder="Filter..."
+              className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+            />
+          </th>
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[180px]">
+            Client / Project
+            <input
+              type="text"
+              value={filters.clientProject}
+              onChange={e => setFilters({ ...filters, clientProject: e.target.value })}
+              placeholder="Filter..."
+              className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+            />
+          </th>
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[140px]">
+            Project No.
+            <input
+              type="text"
+              value={filters.projectNumber}
+              onChange={e => setFilters({ ...filters, projectNumber: e.target.value })}
+              placeholder="Filter..."
+              className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+            />
+          </th>
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[100px]">
+            Total Hours
+            <input
+              type="text"
+              value={filters.totalHours}
+              onChange={e => setFilters({ ...filters, totalHours: e.target.value })}
+              placeholder="Filter..."
+              className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+            />
+          </th>
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[80px]">
+            Tasks
+            <input
+              type="text"
+              value={filters.tasksCount}
+              onChange={e => setFilters({ ...filters, tasksCount: e.target.value })}
+              placeholder="Filter..."
+              className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+            />
+          </th>
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[130px]">
+            Submitted
+            <input
+              type="text"
+              value={filters.submitted}
+              onChange={e => setFilters({ ...filters, submitted: e.target.value })}
+              placeholder="Filter..."
+              className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+            />
+          </th>
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase min-w-[100px]">
+            Status
+            <input
+              type="text"
+              value={filters.status}
+              onChange={e => setFilters({ ...filters, status: e.target.value })}
+              placeholder="Filter..."
+              className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+            />
+          </th>
+          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase w-24">
+            Actions
+          </th>
+        </tr>
+      </thead>
 
-          <tbody className="divide-y divide-gray-200">
-            {filteredTimesheets.length > 0 ? (
-              filteredTimesheets.map(entry => (
-                <tr key={entry.id} className="hover:bg-gray-50">
-                  {isAdminOrDev && <td className="px-6 py-4">{entry.employee_name || '—'}</td>}
-                  <td className="px-6 py-4">{new Date(entry.date).toLocaleDateString('en-ZA')}</td>
-                  <td className="px-6 py-4">{getClientProjectDisplay(entry)}</td>
-                  <td className="px-6 py-4 font-medium text-gray-700">{getProjectNumbers(entry)}</td>
-                  <td className="px-6 py-4 font-medium">{Number(entry.totalHours || 0).toFixed(2)}</td>
-                  <td className="px-6 py-4">{entry.tasks?.length || 0}</td>
-                  <td className="px-6 py-4 text-sm">
-                    {entry.date_submitted 
-                      ? new Date(entry.date_submitted).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' }) 
-                      : '—'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      entry.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      entry.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {entry.status?.charAt(0).toUpperCase() + entry.status?.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-4">
-                      <button onClick={() => openModal(entry, 'view')} className="text-blue-600 hover:text-blue-800" title="View">
-                        <Eye size={20} />
-                      </button>
-                      {(roleId === 3 && entry.status === 'pending' && !entry.locked) && (
-                        <button onClick={() => openModal(entry, 'edit')} className="text-orange-600 hover:text-orange-800" title="Edit">
-                          <Edit size={20} />
-                        </button>
-                      )}
-                      {isAdminOrDev && entry.status === 'pending' && (
-                        <button onClick={() => openModal(entry, 'review')} className="text-green-600 hover:text-green-800" title="Review">
-                          <CheckCircle size={20} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={isAdminOrDev ? 9 : 8} className="text-center py-12 text-gray-500">
-                  No timesheets found matching filters
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <tbody className="divide-y divide-gray-200">
+        {filteredTimesheets.length > 0 ? (
+          filteredTimesheets.map(entry => (
+            <tr key={entry.id} className="hover:bg-gray-50">
+              {isAdminOrDev && <td className="px-6 py-4 whitespace-nowrap">{entry.employee_name || '—'}</td>}
+              <td className="px-6 py-4 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('en-ZA')}</td>
+              <td className="px-6 py-4">{getClientProjectDisplay(entry)}</td>
+              <td className="px-6 py-4 font-medium text-gray-700 whitespace-nowrap">
+                {getProjectNumbers(entry)}
+              </td>
+              <td className="px-6 py-4 font-medium">{Number(entry.totalHours || 0).toFixed(2)}</td>
+              <td className="px-6 py-4 text-center">{entry.tasks?.length || 0}</td>
+              <td className="px-6 py-4 text-sm whitespace-nowrap">
+                {entry.date_submitted 
+                  ? new Date(entry.date_submitted).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' }) 
+                  : '—'}
+              </td>
+              <td className="px-6 py-4">
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  entry.status === 'approved' ? 'bg-green-100 text-green-800' :
+                  entry.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {entry.status?.charAt(0).toUpperCase() + entry.status?.slice(1)}
+                </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => openModal(entry, 'view')}
+                    className="text-blue-600 hover:text-blue-800 transition"
+                    title="View details"
+                  >
+                    <Eye size={20} />
+                  </button>
+
+                  {(roleId === 3 && entry.status === 'pending' && !entry.locked) && (
+                    <button
+                      onClick={() => openModal(entry, 'edit')}
+                      className="text-orange-600 hover:text-orange-800 transition"
+                      title="Edit timesheet"
+                    >
+                      <Edit size={20} />
+                    </button>
+                  )}
+
+                  {isAdminOrDev && entry.status === 'pending' && (
+                    <button
+                      onClick={() => openModal(entry, 'review')}
+                      className="text-green-600 hover:text-green-800 transition"
+                      title="Review"
+                    >
+                      <CheckCircle size={20} />
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))
+        ) : (
+          <tr>
+            <td colSpan={isAdminOrDev ? 9 : 8} className="text-center py-12 text-gray-500">
+              No timesheets found matching filters
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+</div>
 
       {/* Modal */}
       {isModalOpen && selectedEntry && (

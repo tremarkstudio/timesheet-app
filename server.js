@@ -589,7 +589,7 @@ app.get('/timesheets/:id', authenticate, (req, res) => {
   );
 });
 
-// SUBMIT NEW TIMESHEET
+// SUBMIT NEW TIMESHEET (fixed field mapping)
 app.post('/timesheets', authenticate, upload.single('attachment'), async (req, res) => {
   const userId = req.user.id;
   const { date, tasks } = req.body;
@@ -612,6 +612,7 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
   const totalHours = parsedTasks.reduce((sum, t) => sum + Number(t.hours || 0), 0);
 
   try {
+    // Insert main timesheet
     const [result] = await db.promise().query(
       `INSERT INTO timesheets 
        (user_id, date, status, attachment_path, date_submitted, total_hours) 
@@ -621,13 +622,14 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
 
     const timesheetId = result.insertId;
 
+    // Insert tasks with correct column mapping
     if (parsedTasks.length > 0) {
       const taskValues = parsedTasks.map(t => [
         timesheetId,
-        t.description || t.title || 'Untitled task',
-        t.projectType || '',
-        t.clientProjectName || '',
-        t.projectNumber || null,
+        t.title || t.description || 'Untitled task',           // title
+        t.type || t.projectType || '',                         // type
+        t.clientProjectName || '',                             // client_project_name
+        t.projectNumber || t.projectCode || null,              // project_code
         Number(t.hours || 0)
       ]);
 
@@ -639,7 +641,10 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
       );
     }
 
-    res.status(201).json({ message: 'Timesheet submitted successfully', id: timesheetId });
+    res.status(201).json({ 
+      message: 'Timesheet submitted successfully', 
+      id: timesheetId 
+    });
   } catch (err) {
     console.error('Timesheet submission error:', err);
     let userMessage = 'Failed to submit timesheet';
@@ -648,8 +653,7 @@ app.post('/timesheets', authenticate, upload.single('attachment'), async (req, r
       userMessage = `Database error: Missing or unknown column (${err.sqlMessage || err.message})`;
     } else if (err.code === 'ER_NO_REFERENCED_ROW_2') {
       userMessage = 'Invalid user ID or foreign key constraint';
-    } else if (err.code === 'ER_TRUNCATED_WRONG_VALUE') {
-      userMessage = 'Invalid date format or data type';
+      
     }
 
     res.status(500).json({ error: userMessage });

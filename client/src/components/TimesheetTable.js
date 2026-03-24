@@ -424,13 +424,21 @@ const TimesheetTable = () => {
             {filteredTimesheets.length > 0 ? (
               filteredTimesheets.map(entry => (
                 <tr key={entry.id} className="hover:bg-gray-50">
-                  {isAdminOrDev && <td className="px-6 py-4 text-sm">{entry.employee_name || '—'}</td>}
-                  <td className="px-6 py-4 text-sm">{new Date(entry.date).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 text-sm">{getClientProjectDisplay(entry)}</td>
-                  <td className="px-6 py-4 text-sm font-medium">
+                  {isAdminOrDev && <td className="px-6 py-4">{entry.employee_name || '—'}</td>}
+                  <td className="px-6 py-4">{new Date(entry.date).toLocaleDateString('en-ZA')}</td>
+                  
+                  {/* Client / Project */}
+                  <td className="px-6 py-4">{getClientProjectDisplay(entry)}</td>
+                  
+                  {/* Project Number */}
+                  <td className="px-6 py-4 font-medium text-gray-700">
+                    {getProjectNumbers(entry)}
+                  </td>
+
+                  <td className="px-6 py-4 font-medium">
                     {Number(entry.totalHours || 0).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 text-sm">{entry.tasks?.length || 0}</td>
+                  <td className="px-6 py-4">{entry.tasks?.length || 0}</td>
                   <td className="px-6 py-4 text-sm">
                     {entry.date_submitted 
                       ? new Date(entry.date_submitted).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' }) 
@@ -442,7 +450,7 @@ const TimesheetTable = () => {
                       entry.status === 'rejected' ? 'bg-red-100 text-red-800' :
                       'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {entry.status}
+                      {entry.status?.charAt(0).toUpperCase() + entry.status?.slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -469,7 +477,7 @@ const TimesheetTable = () => {
                         <button
                           onClick={() => openModal(entry, 'review')}
                           className="text-green-600 hover:text-green-800"
-                          title="Review & Approve/Reject"
+                          title="Review"
                         >
                           <CheckCircle size={20} />
                         </button>
@@ -480,7 +488,7 @@ const TimesheetTable = () => {
               ))
             ) : (
               <tr>
-                <td colSpan={isAdminOrDev ? 8 : 7} className="text-center py-10 text-gray-500">
+                <td colSpan={isAdminOrDev ? 9 : 8} className="text-center py-10 text-gray-500">
                   No timesheets found matching filters
                 </td>
               </tr>

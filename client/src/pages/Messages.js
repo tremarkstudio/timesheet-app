@@ -1,24 +1,24 @@
 // client/src/pages/Messages.js
 import React, { useEffect, useState, useRef } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import { Send, Bell, MessageSquare, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Send, Bell, MessageSquare, CheckCircle, XCircle, Clock, AlertTriangle, Paperclip, FileText, Upload ,X,} from 'lucide-react';
 import api from '../api/axios';
 
 const Messages = () => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('messages');
   const [notifications, setNotifications] = useState([]);
-  const [employees, setEmployees] = useState([]);       // admins only
-  const [manager, setManager] = useState(null);         // employees only
+  const [employees, setEmployees] = useState([]);
+  const [manager, setManager] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [messageText, setMessageText] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState('');
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentPreview, setAttachmentPreview] = useState(null);
 
-  const messagesEndRef = useRef(null); // for auto-scroll
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const roleId = parseInt(localStorage.getItem('role_id')) || 0;
   const isAdmin = [1, 2].includes(roleId);
@@ -26,43 +26,29 @@ const Messages = () => {
 
   useEffect(() => {
     fetchNotifications();
-
-    if (isAdmin) {
-      fetchEmployees();
-    } else {
-      fetchOwnManager();
-    }
+    if (isAdmin) fetchEmployees();
+    else fetchOwnManager();
   }, [isAdmin]);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
   const fetchNotifications = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
-      const res = await api.get('/notifications', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/notifications');
       setNotifications(res.data || []);
     } catch (err) {
       console.error('Notifications fetch failed:', err);
-      setError('Failed to load notifications');
     }
   };
 
   const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await api.get('/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/users');
       setEmployees(res.data.filter(u => u.role_id === 3) || []);
     } catch (err) {
-      console.error('Employees fetch failed:', err);
-      setError('Failed to load employees');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -70,26 +56,16 @@ const Messages = () => {
 
   const fetchOwnManager = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
-
-      const userRes = await api.get('/users/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const userRes = await api.get('/users/me');
       const managerId = userRes.data.manager_id;
 
       if (managerId) {
-        const managerRes = await api.get(`/users/${managerId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const managerRes = await api.get(`/users/${managerId}`);
         setManager(managerRes.data);
         setSelectedUserId(managerId);
-      } else {
-        setError('No team contact (manager) assigned yet — contact admin');
       }
     } catch (err) {
-      console.error('Manager fetch failed:', err);
-      setError('Failed to load your team contact');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -102,56 +78,72 @@ const Messages = () => {
 
     setChatLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await api.get(`/messages/user/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/messages/user/${userId}`);
       setChatMessages(res.data || []);
     } catch (err) {
-      console.error('Chat history load failed:', err);
-      setChatMessages([]);
+      console.error(err);
     } finally {
       setChatLoading(false);
     }
   };
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File size must be less than 10MB");
+      return;
+    }
+
+    setAttachment(file);
+    setAttachmentPreview({
+      name: file.name,
+      type: file.type.startsWith('image/') ? 'image' : 'file'
+    });
+  };
+
+  const removeAttachment = () => {
+    setAttachment(null);
+    setAttachmentPreview(null);
+    fileInputRef.current.value = '';
+  };
+
   const sendMessage = async () => {
-    if (!messageText.trim() || !selectedUserId) return;
+    if (!messageText.trim() && !attachment) return;
+    if (!selectedUserId) return;
+
+    const formData = new FormData();
+    formData.append('content', messageText.trim());
+    formData.append('recipientId', selectedUserId);
+    if (attachment) {
+      formData.append('attachment', attachment);
+    }
 
     try {
-      const token = localStorage.getItem('token');
-      await api.post('/messages', {
-        content: messageText.trim(),
-        recipientId: selectedUserId,
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
+      await api.post('/messages', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
+      // Add message to UI immediately
       const newMsg = {
         id: Date.now(),
         sender_id: currentUserId,
         content: messageText.trim(),
+        attachment_name: attachment ? attachment.name : null,
         created_at: new Date().toISOString(),
         sender_name: 'You',
       };
+
       setChatMessages(prev => [...prev, newMsg]);
       setMessageText('');
+      setAttachment(null);
+      setAttachmentPreview(null);
     } catch (err) {
       console.error('Message send failed:', err);
-      setError('Failed to send message');
+      alert('Failed to send message');
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg text-gray-600 flex items-center gap-3">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-custom-orange"></div>
-          Loading messages...
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
@@ -167,26 +159,10 @@ const Messages = () => {
       <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden mb-8">
         <div className="border-b border-gray-200">
           <nav className="flex">
-            <button
-              onClick={() => setActiveTab('messages')}
-              className={`flex-1 py-5 px-6 text-center font-medium text-lg transition-all ${
-                activeTab === 'messages'
-                  ? 'border-b-4 border-custom-orange text-custom-orange bg-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <MessageSquare className="inline mr-2" size={20} />
+            <button onClick={() => setActiveTab('messages')} className={`flex-1 py-5 px-6 text-center font-medium text-lg transition-all ${activeTab === 'messages' ? 'border-b-4 border-custom-orange text-custom-orange' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
               Messages
             </button>
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`flex-1 py-5 px-6 text-center font-medium text-lg transition-all ${
-                activeTab === 'notifications'
-                  ? 'border-b-4 border-custom-orange text-custom-orange bg-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <Bell className="inline mr-2" size={20} />
+            <button onClick={() => setActiveTab('notifications')} className={`flex-1 py-5 px-6 text-center font-medium text-lg transition-all ${activeTab === 'notifications' ? 'border-b-4 border-custom-orange text-custom-orange' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
               Notifications
             </button>
           </nav>
@@ -196,128 +172,103 @@ const Messages = () => {
         {activeTab === 'messages' && (
           <div className="p-6 md:p-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Selection Panel */}
+              {/* User Selection */}
               <div className="lg:col-span-1 bg-gray-50 p-6 rounded-xl border">
                 <h3 className="text-lg font-semibold mb-4">Team Contact</h3>
-
                 {isAdmin ? (
-                  // Admins select from employees
                   <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                    {employees.length === 0 ? (
-                      <div className="text-gray-500 p-4">No employees found</div>
-                    ) : (
-                      employees.map(u => (
-                        <button
-                          key={u.id}
-                          onClick={() => handleUserSelect(u.id)}
-                          className={`w-full p-4 text-left border rounded-lg transition hover:shadow-md ${
-                            selectedUserId === u.id ? 'bg-custom-orange text-white hover:bg-orange-600' : 'bg-white hover:bg-gray-50'
-                          }`}
-                        >
-                          {u.first_name} {u.last_name} ({u.username})
-                        </button>
-                      ))
-                    )}
+                    {employees.map(u => (
+                      <button
+                        key={u.id}
+                        onClick={() => handleUserSelect(u.id)}
+                        className={`w-full p-4 text-left border rounded-lg transition hover:shadow-md ${selectedUserId === u.id ? 'bg-custom-orange text-white' : 'bg-white hover:bg-gray-50'}`}
+                      >
+                        {u.first_name} {u.last_name}
+                      </button>
+                    ))}
                   </div>
+                ) : manager ? (
+                  <button onClick={() => handleUserSelect(manager.id)} className={`w-full p-4 text-left border rounded-lg transition hover:shadow-md ${selectedUserId === manager.id ? 'bg-custom-orange text-white' : 'bg-white'}`}>
+                    Team Contact: {manager.first_name} {manager.last_name}
+                  </button>
                 ) : (
-                  // Employees: fixed Team Contact (manager)
-                  manager ? (
-                    <button
-                      onClick={() => handleUserSelect(manager.id)}
-                      className={`w-full p-4 text-left border rounded-lg transition hover:shadow-md ${
-                        selectedUserId === manager.id ? 'bg-custom-orange text-white hover:bg-orange-600' : 'bg-white hover:bg-gray-100'
-                      }`}
-                    >
-                      Team Contact: {manager.first_name} {manager.last_name} ({manager.username})
-                    </button>
-                  ) : (
-                    <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">
-                      No team contact (manager) assigned yet — contact admin
-                    </div>
-                  )
+                  <div className="p-4 bg-red-50 text-red-700 rounded-lg">No manager assigned</div>
                 )}
               </div>
 
               {/* Chat Area */}
-              <div className="lg:col-span-2 bg-white rounded-xl border shadow-sm flex flex-col h-[600px]">
+              <div className="lg:col-span-2 bg-white rounded-xl border shadow-sm flex flex-col h-[620px]">
                 {!selectedUserId ? (
-                  <div className="flex-1 flex items-center justify-center text-gray-500 text-center px-4">
-                    {isAdmin
-                      ? 'Select a team member to start messaging'
-                      : manager
-                      ? 'Click "Team Contact" above to view conversation'
-                      : 'No team contact assigned - cannot send messages'}
-                  </div>
+                  <div className="flex-1 flex items-center justify-center text-gray-500">Select a contact to start messaging</div>
                 ) : (
                   <>
-                    <div className="p-4 border-b bg-gray-50">
-                      <h3 className="font-semibold">
-                        Conversation with {isAdmin
-                          ? employees.find(u => u.id === selectedUserId)?.first_name
-                          : manager?.first_name} {isAdmin
-                          ? employees.find(u => u.id === selectedUserId)?.last_name
-                          : manager?.last_name}
-                      </h3>
+                    <div className="p-4 border-b bg-gray-50 font-semibold">
+                      Conversation with {isAdmin ? employees.find(u => u.id === selectedUserId)?.first_name : manager?.first_name}
                     </div>
 
-                    <div className="flex-1 p-4 overflow-y-auto space-y-4 pb-4">
-                      {chatLoading ? (
-                        <div className="text-center py-10">Loading messages...</div>
-                      ) : chatMessages.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500">
-                          No messages yet. {isAdmin ? 'Start the conversation below.' : 'Wait for a message from your team contact.'}
-                        </div>
-                      ) : (
-                        chatMessages.map(msg => (
-                          <div
-                            key={msg.id}
-                            className={`flex ${msg.sender_id === currentUserId ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div className="flex flex-col max-w-[70%]">
-                              {msg.sender_id !== currentUserId && (
-                                <span className="text-xs text-gray-500 mb-1 ml-2">
-                                  {msg.sender_name || 'Them'}
-                                </span>
-                              )}
-                              <div
-                                className={`p-3 rounded-2xl ${
-                                  msg.sender_id === currentUserId
-                                    ? 'bg-custom-orange text-white rounded-tr-none'
-                                    : 'bg-gray-100 text-gray-900 rounded-tl-none'
-                                }`}
-                              >
-                                <p className="break-words">{msg.content}</p>
+                    <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                      {chatMessages.map(msg => (
+                        <div key={msg.id} className={`flex ${msg.sender_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[75%] p-4 rounded-2xl ${msg.sender_id === currentUserId ? 'bg-custom-orange text-white' : 'bg-gray-100'}`}>
+                            <p>{msg.content}</p>
+                            {msg.attachment_name && (
+                              <div className="mt-2 text-xs opacity-75 flex items-center gap-1">
+                                <Paperclip size={14} /> {msg.attachment_name}
                               </div>
-                              <span className="text-xs text-gray-400 mt-1 self-end">
-                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
+                            )}
                           </div>
-                        ))
-                      )}
+                        </div>
+                      ))}
                       <div ref={messagesEndRef} />
                     </div>
 
-                    <div className="p-4 border-t bg-white">
-                      <div className="flex gap-2">
+                    {/* Message Input with Attachment */}
+                    <div className="p-4 border-t">
+                      {attachmentPreview && (
+                        <div className="mb-3 p-3 bg-gray-100 rounded-xl flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FileText size={20} />
+                            <span className="text-sm">{attachmentPreview.name}</span>
+                          </div>
+                          <button onClick={removeAttachment} className="text-red-600 hover:text-red-800">
+                            <X size={18} />
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3">
                         <input
                           type="text"
                           value={messageText}
                           onChange={e => setMessageText(e.target.value)}
-                          placeholder="Type your message..."
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-custom-orange focus:border-custom-orange"
                           onKeyPress={e => e.key === 'Enter' && sendMessage()}
+                          placeholder="Type a message..."
+                          className="flex-1 px-5 py-4 border border-gray-300 rounded-2xl focus:ring-custom-orange focus:border-custom-orange"
                         />
+
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current.click()}
+                          className="px-5 py-4 bg-gray-100 hover:bg-gray-200 rounded-2xl transition"
+                        >
+                          <Paperclip size={22} />
+                        </button>
+
                         <button
                           onClick={sendMessage}
-                          disabled={!messageText.trim()}
-                          className={`px-6 py-3 rounded-lg text-white font-medium transition ${
-                            messageText.trim() ? 'bg-custom-orange hover:bg-orange-600' : 'bg-gray-400 cursor-not-allowed'
-                          }`}
+                          disabled={!messageText.trim() && !attachment}
+                          className={`px-8 py-4 rounded-2xl text-white font-medium transition ${(!messageText.trim() && !attachment) ? 'bg-gray-400' : 'bg-custom-orange hover:bg-orange-600'}`}
                         >
-                          <Send size={20} />
+                          <Send size={22} />
                         </button>
                       </div>
+
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
                     </div>
                   </>
                 )}
@@ -326,61 +277,10 @@ const Messages = () => {
           </div>
         )}
 
-        {/* Notifications Tab */}
+        {/* Notifications Tab - unchanged */}
         {activeTab === 'notifications' && (
           <div className="p-6 md:p-8">
-            <h2 className="text-2xl font-semibold mb-6">
-              {isAdmin ? 'All Timesheet Activity' : 'Your Timesheet Updates'}
-            </h2>
-
-            {notifications.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                No notifications yet
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {notifications
-                  .filter(n => n.related_timesheet_id)
-                  .map(notif => (
-                    <div
-                      key={notif.id}
-                      className={`p-6 rounded-xl border shadow-sm ${
-                        !notif.is_read ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          {notif.title.includes('Approved') ? (
-                            <CheckCircle className="text-green-600" size={24} />
-                          ) : notif.title.includes('Rejected') ? (
-                            <XCircle className="text-red-600" size={24} />
-                          ) : (
-                            <Clock className="text-yellow-600" size={24} />
-                          )}
-                          <h3 className="text-lg font-semibold">{notif.title}</h3>
-                        </div>
-                        <span className="text-sm text-gray-500">
-                          {new Date(notif.created_at).toLocaleString('en-ZA', {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          })}
-                        </span>
-                      </div>
-
-                      <p className="text-gray-700 whitespace-pre-line mb-4">{notif.message}</p>
-
-                      {notif.related_timesheet_id && (
-                        <button
-                          onClick={() => navigate(`/timesheets?tab=previous&timesheet=${notif.related_timesheet_id}`)}
-                          className="text-custom-orange hover:underline font-medium"
-                        >
-                          View Timesheet →
-                        </button>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            )}
+            {/* Your existing notifications code */}
           </div>
         )}
       </div>

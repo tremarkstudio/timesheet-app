@@ -269,16 +269,15 @@ app.get('/users/me', authenticate, async (req, res) => {
 
   try {
     const [results] = await db.promise().query(
-      `SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.phone, 
-              u.role_id, u.employee_id, u.department, u.job_title, 
-              u.employment_type, u.start_date, u.manager_id, u.leave_balance,
-              u.avatar_url,
-              CONCAT(m.first_name, ' ', m.last_name) AS manager_name
-       FROM users u
-       LEFT JOIN users m ON u.manager_id = m.id
-       WHERE u.id = ?`,
-      [userId]
-    );
+  `SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.phone, 
+          u.role_id, u.employee_id, u.department, u.job_title, 
+          u.employment_type, u.start_date, u.manager_id, u.leave_balance,
+          CONCAT(m.first_name, ' ', m.last_name) AS manager_name
+   FROM users u
+   LEFT JOIN users m ON u.manager_id = m.id
+   WHERE u.id = ?`,
+  [userId]
+);
 
     if (results.length === 0) {
       return res.status(404).json({ error: 'User not found' });

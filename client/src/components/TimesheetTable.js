@@ -289,15 +289,26 @@ const TimesheetTable = () => {
 
   // Helper for client/project display in table
   const getClientProjectDisplay = (entry) => {
-  if (!entry.tasks || entry.tasks.length === 0) return '—';
-  
-  const projects = entry.tasks
-    .map(t => t.client_project_name || t.clientProjectName)
-    .filter(Boolean);
-  
-  const unique = [...new Set(projects)];
-  return unique.length === 1 ? unique[0] : `Multiple (${unique.length})`;
-};
+    if (!entry.tasks || entry.tasks.length === 0) return '—';
+    
+    const projects = entry.tasks
+      .map(t => t.client_project_name || t.clientProjectName)
+      .filter(Boolean);
+    
+    const unique = [...new Set(projects)];
+    return unique.length === 1 ? unique[0] : `Multiple (${unique.length})`;
+  };
+
+  // NEW HELPER - Project Number display
+  const getProjectNumbers = (entry) => {
+    if (!entry.tasks || entry.tasks.length === 0) return '—';
+    
+    const numbers = entry.tasks
+      .map(t => t.project_code || t.projectNumber)
+      .filter(Boolean);
+    
+    return numbers.length > 0 ? numbers.join(', ') : '—';
+  };
 
   const projectTypeOptions = [
     'Project admin & Management',
@@ -326,118 +337,56 @@ const TimesheetTable = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="w-full">
+        <table className="w-full min-w-full">
           <thead className="bg-gray-50">
             <tr>
               {isAdminOrDev && (
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                   Employee
-                  <input
-                    type="text"
-                    value={filters.employee}
-                    onChange={e => setFilters({ ...filters, employee: e.target.value })}
-                    placeholder="Filter..."
-                    className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                  />
+                  <input type="text" value={filters.employee} onChange={e => setFilters({ ...filters, employee: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
                 </th>
               )}
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Date
-                <input
-                  type="text"
-                  value={filters.date}
-                  onChange={e => setFilters({ ...filters, date: e.target.value })}
-                  placeholder="Filter..."
-                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                />
+                <input type="text" value={filters.date} onChange={e => setFilters({ ...filters, date: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
               </th>
-
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Client / Project
-                <input
-                  type="text"
-                  value={filters.clientProject}
-                  onChange={e => setFilters({ ...filters, clientProject: e.target.value })}
-                  placeholder="Filter..."
-                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                />
+                <input type="text" value={filters.clientProject} onChange={e => setFilters({ ...filters, clientProject: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
               </th>
-
-              {/* NEW COLUMN - Project Number */}
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Project No.
-                <input
-                  type="text"
-                  value={filters.projectNumber}
-                  onChange={e => setFilters({ ...filters, projectNumber: e.target.value })}
-                  placeholder="Filter..."
-                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                />
+                <input type="text" value={filters.projectNumber} onChange={e => setFilters({ ...filters, projectNumber: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
               </th>
-
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Total Hours
-                <input
-                  type="text"
-                  value={filters.totalHours}
-                  onChange={e => setFilters({ ...filters, totalHours: e.target.value })}
-                  placeholder="Filter..."
-                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                />
+                <input type="text" value={filters.totalHours} onChange={e => setFilters({ ...filters, totalHours: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
               </th>
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Tasks
-                <input
-                  type="text"
-                  value={filters.tasksCount}
-                  onChange={e => setFilters({ ...filters, tasksCount: e.target.value })}
-                  placeholder="Filter..."
-                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                />
+                <input type="text" value={filters.tasksCount} onChange={e => setFilters({ ...filters, tasksCount: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
               </th>
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Submitted
-                <input
-                  type="text"
-                  value={filters.submitted}
-                  onChange={e => setFilters({ ...filters, submitted: e.target.value })}
-                  placeholder="Filter..."
-                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                />
+                <input type="text" value={filters.submitted} onChange={e => setFilters({ ...filters, submitted: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
               </th>
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Status
-                <input
-                  type="text"
-                  value={filters.status}
-                  onChange={e => setFilters({ ...filters, status: e.target.value })}
-                  placeholder="Filter..."
-                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
-                />
+                <input type="text" value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })} placeholder="Filter..." className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange" />
               </th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Actions
-              </th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
+
           <tbody className="divide-y divide-gray-200">
             {filteredTimesheets.length > 0 ? (
               filteredTimesheets.map(entry => (
                 <tr key={entry.id} className="hover:bg-gray-50">
                   {isAdminOrDev && <td className="px-6 py-4">{entry.employee_name || '—'}</td>}
                   <td className="px-6 py-4">{new Date(entry.date).toLocaleDateString('en-ZA')}</td>
-                  
-                  {/* Client / Project */}
                   <td className="px-6 py-4">{getClientProjectDisplay(entry)}</td>
-                  
-                  {/* Project Number */}
-                  <td className="px-6 py-4 font-medium text-gray-700">
-                    {getProjectNumbers(entry)}
-                  </td>
-
-                  <td className="px-6 py-4 font-medium">
-                    {Number(entry.totalHours || 0).toFixed(2)}
-                  </td>
+                  <td className="px-6 py-4 font-medium text-gray-700">{getProjectNumbers(entry)}</td>
+                  <td className="px-6 py-4 font-medium">{Number(entry.totalHours || 0).toFixed(2)}</td>
                   <td className="px-6 py-4">{entry.tasks?.length || 0}</td>
                   <td className="px-6 py-4 text-sm">
                     {entry.date_submitted 
@@ -455,30 +404,16 @@ const TimesheetTable = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-4">
-                      <button
-                        onClick={() => openModal(entry, 'view')}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="View details"
-                      >
+                      <button onClick={() => openModal(entry, 'view')} className="text-blue-600 hover:text-blue-800" title="View">
                         <Eye size={20} />
                       </button>
-
                       {(roleId === 3 && entry.status === 'pending' && !entry.locked) && (
-                        <button
-                          onClick={() => openModal(entry, 'edit')}
-                          className="text-orange-600 hover:text-orange-800"
-                          title="Edit timesheet"
-                        >
+                        <button onClick={() => openModal(entry, 'edit')} className="text-orange-600 hover:text-orange-800" title="Edit">
                           <Edit size={20} />
                         </button>
                       )}
-
                       {isAdminOrDev && entry.status === 'pending' && (
-                        <button
-                          onClick={() => openModal(entry, 'review')}
-                          className="text-green-600 hover:text-green-800"
-                          title="Review"
-                        >
+                        <button onClick={() => openModal(entry, 'review')} className="text-green-600 hover:text-green-800" title="Review">
                           <CheckCircle size={20} />
                         </button>
                       )}
@@ -488,7 +423,7 @@ const TimesheetTable = () => {
               ))
             ) : (
               <tr>
-                <td colSpan={isAdminOrDev ? 9 : 8} className="text-center py-10 text-gray-500">
+                <td colSpan={isAdminOrDev ? 9 : 8} className="text-center py-12 text-gray-500">
                   No timesheets found matching filters
                 </td>
               </tr>

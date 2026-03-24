@@ -141,13 +141,13 @@ const TimesheetTable = () => {
 
   const openModal = (entry, mode) => {
     const mappedTasks = (entry.tasks || []).map(t => ({
-      ...t,
-      clientProjectName: t.clientProjectName || '',
-      projectType: t.projectType || t.type || '',
-      projectNumber: t.projectNumber || '',
-      description: t.description || t.title || '',
-      hours: t.hours || '',
-    }));
+  ...t,
+  clientProjectName: t.client_project_name || t.clientProjectName || '',
+  projectNumber: t.project_code || t.projectNumber || '',
+  projectType: t.type || t.projectType || '',
+  description: t.title || t.description || '',
+  hours: t.hours || '',
+}));
 
     setSelectedEntry({
       ...entry,
@@ -289,15 +289,15 @@ const TimesheetTable = () => {
 
   // Helper for client/project display in table
   const getClientProjectDisplay = (entry) => {
-    if (!entry.tasks || entry.tasks.length === 0) return '—';
-    const projects = entry.tasks
-      .map(t => t.clientProjectName?.trim())
-      .filter(Boolean);
-    const unique = [...new Set(projects)];
-    if (unique.length === 0) return '—';
-    if (unique.length === 1) return unique[0];
-    return `Multiple (${unique.length})`;
-  };
+  if (!entry.tasks || entry.tasks.length === 0) return '—';
+  
+  const projects = entry.tasks
+    .map(t => t.client_project_name || t.clientProjectName)
+    .filter(Boolean);
+  
+  const unique = [...new Set(projects)];
+  return unique.length === 1 ? unique[0] : `Multiple (${unique.length})`;
+};
 
   const projectTypeOptions = [
     'Project admin & Management',
@@ -351,8 +351,9 @@ const TimesheetTable = () => {
                   className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
                 />
               </th>
+
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
-                Client/Project
+                Client / Project
                 <input
                   type="text"
                   value={filters.clientProject}
@@ -361,6 +362,19 @@ const TimesheetTable = () => {
                   className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
                 />
               </th>
+
+              {/* NEW COLUMN - Project Number */}
+              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
+                Project No.
+                <input
+                  type="text"
+                  value={filters.projectNumber}
+                  onChange={e => setFilters({ ...filters, projectNumber: e.target.value })}
+                  placeholder="Filter..."
+                  className="mt-2 w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-custom-orange"
+                />
+              </th>
+
               <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">
                 Total Hours
                 <input
